@@ -171,18 +171,25 @@ display(
 # MAGIC %md
 # MAGIC ## 7. A mesma leitura em SQL puro: `read_files`
 # MAGIC Função de tabela que lê arquivos sem criar nada. É a base do `COPY INTO` e das streaming tables (marco 2).
+# MAGIC
+# MAGIC **Diferença importante (D007):** em `read_files` e no Auto Loader, `inferColumnTypes => false` não gera
+# MAGIC struct com folhas string: as colunas de 1º nível (`NFe`, `protNFe`) viram **STRING com o XML bruto**.
+# MAGIC Por isso `NFe.infNFe.ide.nNF` falha (`INVALID_EXTRACT_BASE_FIELD_TYPE`); o caminho certo é XPath sobre o texto.
+# MAGIC O `<r>...</r>` envolve o conteúdo porque `NFe` tem duas raízes (`infNFe` e `Signature`).
 
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC SELECT _metadata.file_name AS arquivo,
-# MAGIC        NFe.infNFe.ide.nNF   AS nnf,
-# MAGIC        protNFe.infProt.cStat AS c_stat
+# MAGIC SELECT _metadata.file_name                                                AS arquivo,
+# MAGIC        typeof(NFe)                                                        AS tipo_nfe,
+# MAGIC        length(NFe)                                                        AS tamanho_xml,
+# MAGIC        xpath_string(concat('<r>', NFe, '</r>'),     '/r/infNFe/ide/nNF')  AS nnf,
+# MAGIC        xpath_string(concat('<r>', protNFe, '</r>'), '/r/infProt/cStat')  AS c_stat
 # MAGIC FROM read_files(
 # MAGIC   '/Volumes/workspace/nfe_bronze/landing/xml/*/*.xml',
 # MAGIC   format => 'xml',
 # MAGIC   rowTag => 'nfeProc',
-# MAGIC   inferColumnTypes => false   -- equivalente a inferSchema=false em read_files/Auto Loader
+# MAGIC   inferColumnTypes => false
 # MAGIC )
 # MAGIC LIMIT 10
 
@@ -193,4 +200,5 @@ display(
 # MAGIC - Quantas linhas × arquivos × notas distintas por lote?
 # MAGIC - Os truncados apareceram em `_corrupt_record`? Com quantos bytes lidos?
 # MAGIC - `det` veio como `array` em todos os lotes? (risco da D004)
+# MAGIC - Leitura `spark.read` (struct) × `read_files` (string bruta): qual serve melhor para a bronze?
 # MAGIC - Algo inesperado no schema (campo faltando, nome diferente)?

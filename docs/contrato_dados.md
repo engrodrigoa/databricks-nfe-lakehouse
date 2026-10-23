@@ -6,11 +6,12 @@ Atributos XML viram colunas com prefixo `_` (ex.: `n._Id`, `det._nItem`).
 
 ## Bronze — `nfe_bronze.nfe_xml`
 
-1 linha por **arquivo** recebido (reenvios incluídos). Sem tipagem: tudo string, como chegou.
+1 linha por **arquivo** recebido (reenvios incluídos). Sem tipagem: o XML bruto, como chegou (D007).
 
 | Coluna | Origem | Observação |
 |---|---|---|
-| `NFe`, `protNFe`, `_versao` | XML (`rowTag nfeProc`) | struct aninhado, folhas como string |
+| `NFe`, `protNFe` | XML (`rowTag nfeProc`) | STRING com o XML interno do elemento (bruto) |
+| `_versao` | atributo `versao` | string |
 | `_corrupt_record` | leitor XML | preenchido quando o arquivo está truncado/malformado |
 | `arquivo`, `caminho`, `tamanho_bytes`, `modificado_em` | `_metadata` | rastreabilidade |
 | `lote` | pasta `lote_NNN` | unidade de carga |
@@ -18,6 +19,7 @@ Atributos XML viram colunas com prefixo `_` (ex.: `n._Id`, `det._nItem`).
 
 ## Silver
 
+Parse: `from_xml(NFe, <schema do contrato>)` ou `xpath_*` sobre a string da bronze.
 Chave natural: `chave_acesso = substring(n._Id, 4)` (44 dígitos). Reenvio = mesma chave em outro
 arquivo → **vale o último recebido** (`modificado_em`, depois `arquivo`).
 

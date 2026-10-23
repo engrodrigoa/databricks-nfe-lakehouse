@@ -39,3 +39,14 @@ equivalente ao `ctrl.nfe_lote` do datalabs.
 **Decisão:** `workspace.nfe_bronze`, `workspace.nfe_silver`, `workspace.nfe_gold`
 (Free Edition: o catálogo padrão é `workspace`).
 **Consequência:** se o ambiente permitir `CREATE CATALOG`, migrar para um catálogo `nfe` é só trocar o prefixo.
+
+## D007 — Bronze guarda o XML bruto como STRING
+
+**Contexto:** no marco 1, `read_files(..., inferColumnTypes => false)` devolveu `NFe` e `protNFe` como
+STRING contendo o XML interno do elemento, e não struct (diferente de `spark.read` com `inferSchema=false`).
+O Auto Loader se comporta como `read_files`.
+**Decisão:** a bronze guarda `NFe`/`protNFe` como texto XML bruto. O parse tipado acontece na silver,
+com `from_xml` + schema explícito do contrato (ou `xpath_*`).
+**Consequência:** a bronze nunca quebra por mudança de layout (grupo novo da reforma = zero impacto na
+ingestão) e mantém o documento íntegro para reprocessar, como o `landing_nfe.nfe_xml` do datalabs.
+Custo: ~6–25 KB por linha (a assinatura digital é a maior parte). Substitui a parte "struct" de D003/D004.
