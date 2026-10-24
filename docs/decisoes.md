@@ -50,3 +50,24 @@ com `from_xml` + schema explícito do contrato (ou `xpath_*`).
 **Consequência:** a bronze nunca quebra por mudança de layout (grupo novo da reforma = zero impacto na
 ingestão) e mantém o documento íntegro para reprocessar, como o `landing_nfe.nfe_xml` do datalabs.
 Custo: ~6–25 KB por linha (a assinatura digital é a maior parte). Substitui a parte "struct" de D003/D004.
+
+## D008 — Log de carga em tabela de controle própria (opção B)
+
+**Contexto:** o perfil por lote (contagem derivada da bronze) mostra o estado, mas não o histórico de execução.
+**Decisão:** tabela `nfe_bronze.ctrl_lote` com início, fim, status e contagens por execução e por lote,
+equivalente ao `ctrl.nfe_lote` do datalabs. Implementada no marco 6, junto com os Lakeflow Jobs.
+Até lá, o log é a consulta derivada da bronze + inventário (`02c`).
+**Consequência:** histórico de execuções para o painel de observabilidade e checagem de completude
+(arquivos no Volume × linhas na bronze).
+
+## D009 — Documentos e códigos sempre como STRING; CNPJ alfanumérico
+
+**Contexto:** a IN RFB 2.229/2024 cria o CNPJ alfanumérico (12 posições alfanuméricas + 2 DVs numéricos)
+para novas inscrições; o gerador já emite parte dos CNPJs nesse formato. CPF, IE, CEP, NCM, CFOP, CST e
+cClassTrib têm zero à esquerda.
+**Decisão:** todos como `STRING` em todas as camadas, nunca numérico. Tamanho e formato validados por
+regra de qualidade (CHECK/expectation), não pelo tipo:
+CNPJ `^[0-9A-Z]{12}[0-9]{2}$` + DV módulo 11 (valor do caractere = código ASCII − 48); CPF `^[0-9]{11}$`.
+**Por que não `VARCHAR(14)`:** no Delta, `VARCHAR(n)` é STRING com checagem de tamanho na escrita.
+Funciona, mas `dest_doc` guarda CNPJ (14) ou CPF (11), e o formato importa mais que o tamanho.
+Uma regra explícita dá mensagem clara e vai para a quarentena, em vez de falhar a carga inteira.

@@ -31,7 +31,7 @@ arquivo → **vale o último recebido** (`modificado_em`, depois `arquivo`).
 | | `dh_emissao`, `dt_emissao` | `ide.dhEmi` | timestamp, date (America/Sao_Paulo) |
 | | `nat_op, tp_nf, fin_nfe, id_dest, ind_final, ind_pres, tp_amb` | `ide.*` | string |
 | | `chave_referenciada` | `ide.NFref.refNFe` | string (devoluções) |
-| Emitente | `emit_cnpj, emit_nome, emit_ie, emit_crt` | `emit.CNPJ, xNome, IE, CRT` | string (CNPJ pode ser alfanumérico) |
+| Emitente | `emit_cnpj, emit_nome, emit_ie, emit_crt` | `emit.CNPJ, xNome, IE, CRT` | string; CNPJ **alfanumérico** (D009) |
 | | `emit_uf, emit_cod_municipio, emit_municipio, emit_logradouro, emit_bairro, emit_cep` | `emit.enderEmit.*` | string |
 | Destinatário | `dest_tipo_doc, dest_doc` | `dest.CNPJ` / `dest.CPF` | string (`CNPJ`/`CPF`) |
 | | `dest_nome, dest_ie, dest_ind_ie` + endereço | `dest.*`, `dest.enderDest.*` | string |
@@ -83,6 +83,7 @@ Ler sempre com schema explícito em string (códigos com zero à esquerda).
 |---|---|---|
 | XML truncado/malformado (`_corrupt_record`) | erro | quarentena, fora da silver |
 | `chave_acesso` com 44 posições e DV módulo 11 válido | erro | quarentena |
+| CNPJ `^[0-9A-Z]{12}[0-9]{2}$` + DV; CPF `^[0-9]{11}$` (D009) | erro | quarentena |
 | `p.cStat = 100` (autorizada) | erro | quarentena |
 | Reenvio da mesma chave | info | dedup, vale o mais recente |
 | Total CBS ≠ Σ `v_cbs` dos itens | aviso | mantém + registra |
