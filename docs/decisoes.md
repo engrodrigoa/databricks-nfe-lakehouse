@@ -107,3 +107,16 @@ duplicatas vêm só do arquivo vencedor.
 **Limite conhecido:** se um reenvio tiver **menos** itens que a versão gravada, os itens excedentes ficam.
 No gerador o reenvio é idêntico, então não ocorre. Correção futura: `WHEN NOT MATCHED BY SOURCE` restrito
 às chaves do lote, ou delete+insert por chave numa transação.
+
+## D013 — Gold: TABLE para dimensões, MATERIALIZED VIEW para fatos e agregado, VIEW para consumo
+
+**Contexto:** a seção 3 da prova cobra a escolha do objeto de gold (table, view, materialized view, streaming table).
+**Decisão:**
+- Dimensões (`dm_*`): `CREATE OR REPLACE TABLE ... AS` = SCD tipo 1, pequenas, mudam com a referência
+- Fatos (`ft_nfe_item`, `ft_nfe_documento`) e agregado (`ag_nfe_ibscbs_mensal`): **materialized view** com
+  `CLUSTER BY (sk_data)`; o refresh decide o que recalcular (substitui o `delete+insert` por mês afetado do datalabs)
+- Consumo (`vw_ibscbs_uf_mes`): view simples sobre o agregado + dimensões
+- `dm_nfe_participante` (SCD2) adiada para o marco 5 (`AUTO CDC ... STORED AS SCD TYPE 2`); até lá a fato leva
+  CNPJ/CPF como chave natural
+**Consequência:** a gold não tem código de carga: só definições. A ordem de refresh (fato antes do agregado)
+passa a ser responsabilidade da orquestração (marco 6).

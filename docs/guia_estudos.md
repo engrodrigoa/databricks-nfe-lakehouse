@@ -14,12 +14,12 @@ MARCO 2  bronze: 3 formas de ingerir ──────────────�
   Auto Loader (xml) ──────┼─► Delta bronze ─► comparação ─► escolha da bronze oficial
   Auto Loader (text) ─────┘   (_metadata, lote)   (anti join com inventário) ─► D010: text
                                                                     │
-MARCO 3  silver ──────────────────────────────────────────────────────────────────── ◐
+MARCO 3  silver ──────────────────────────────────────────────────────────────────── ✔
   bronze ─stream─► foreachBatch: from_xml ─► nfe_doc ─► vw_nfe_* (SQL) ─dedup─► MERGE ─► nota·item·pag·dup
                                         └─► quarentena (corrompido, DV, cStat, CNPJ)   vw_dq_alertas (aviso)
                                                                     │
-MARCO 4  gold ───────────────────────────────────────────────────────────────────────
-  silver + referências ─► dimensões ─► ft_nfe_item · ft_nfe_documento ─► ag_ibscbs_mensal
+MARCO 4  gold ─────────────────────────────────────────────────────────────────────── ◐
+  silver + ref ─► dm_* (TABLE) ─► ft_nfe_item · ft_nfe_documento (MV) ─► ag_ibscbs_mensal (MV) ─► vw (VIEW)
                                                                     │
 MARCO 5  Lakeflow Declarative Pipelines ─────────────────────────────────────────────
   o mesmo fluxo como STREAMING TABLE + MATERIALIZED VIEW + EXPECTATIONS
@@ -152,11 +152,50 @@ MARCO 7  consumo e governança ────────────────�
 - Origem do MERGE sem chave duplicada nas 4 entidades; reenvio mais novo venceu
 - Gabarito do gerador: 20/20 anomalias detectadas, 0 falso positivo
 
-**Notas pessoais**
-- _registrar aqui o resultado na plataforma (log por lote, métricas do MERGE, gabarito)_
+- Comentário de tabela/view com `;` dentro: evite (quebra divisores de instrução fora do Databricks)
+
+**Resultado na plataforma**
+- 858 arquivos → 5 quarentena → 853 docs → 8 reenvios resolvidos → 845 notas · 2.496 itens · 845 pagamentos · 914 duplicatas
+- Log por lote fecha nos 3 lotes (`nao_processados = 0`)
+- Gabarito (lotes 002 + 003): **31/31** anomalias detectadas, **0** falso positivo
+- 2ª execução do 03b: versões iguais (`v12 → v12`): idempotente
+- Constraint: `INSERT` com NCM de 4 dígitos → `DELTA_VIOLATE_CONSTRAINT_WITH_VALUES`, nada gravado
+- `TBLPROPERTIES`: `checkConstraints`, `clustering`, `deletionVectors`, `rowTracking` → protocolo reader 3 / writer 7
+- Deletion vectors: MERGE/UPDATE/DELETE marcam linhas removidas sem reescrever o Parquet na hora
+- `SHOW TABLES` lista views também; `_sqldf` = resultado da célula anterior (temporária)
+- SQL Editor roda em **SQL Warehouse**; notebook em **serverless compute**: mesmas tabelas via UC
+- Pegadinha vivida: fechar o navegador encerra a sessão (variáveis, views temporárias, stream ativo);
+  tabelas, commits e checkpoints ficam. Checkpoint sem `offsets/` = o stream nunca iniciou
 
 ---
 
-## Marcos 4 a 7
+## Marco 4 — gold
+
+**Conceitos**
+- Objetos de gold: **TABLE** (você escreve) · **VIEW** (calcula na consulta) · **MATERIALIZED VIEW** (resultado
+  guardado, `REFRESH`, pode ser incremental) · **STREAMING TABLE** (incremental append, marco 5)
+- MV é mantida por um pipeline serverless gerenciado; `event_log(TABLE(mv))` mostra como foi o refresh
+- Modelo estrela: fato no menor grão (item) + fato de documento + agregado; medidas **aditivas** na fato
+- Junk dimension: indicadores de baixa cardinalidade combinados numa chave (`dm_nfe_operacao`, 504 combinações)
+- SCD tipo 1 (sobrescreve) × tipo 2 (versiona). Tipo 2 no marco 5 com `AUTO CDC`
+- Delta **não impõe FK**: integridade referencial é checada (anti join fato × dimensão)
+- Reconciliação: silver × fato × agregado com diferença 0 nas medidas aditivas
+
+**Pegadinhas**
+- Contagem distinta e percentual **não somam** entre linhas do agregado; recalcule como Σ/Σ
+- Ordem de refresh: o agregado lê a fato, então a fato atualiza primeiro
+- Subconsulta correlacionada numa MV tende a impedir refresh incremental: prefira `JOIN` com agregado
+- `VALUES (...) AS t(colunas)` é tabela literal; `GROUP BY ALL` agrupa por tudo que não é agregação
+
+**Validado localmente (Spark 4.0, silver simulada)**
+- Dimensões: tempo 1.095, município 31, CFOP 8, NCM 22, tributação 3, operação 504
+- Reconciliação com diferença 0; órfão só em `sk_tributacao` (= itens com `cclasstrib_incoerente`)
+
+**Resultado na plataforma**
+- _anotar: reconciliação, órfãos, refresh com lote_004 (meses reabertos), técnica do refresh no event log_
+
+---
+
+## Marcos 5 a 7
 
 _A preencher conforme o projeto avança. Mesmo formato: conceitos · pegadinhas · notas._
