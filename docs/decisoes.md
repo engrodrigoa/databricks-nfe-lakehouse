@@ -84,3 +84,26 @@ perdeu arquivo (inventário × tabela). A diferença foi o tratamento dos 5 trun
 `nfe_xml_copyinto` e `nfe_xml_autoloader` são tabelas de estudo e podem ser removidas após o marco 3.
 **Consequência:** "linha existe" ≠ "documento existe": a checagem de completude (inventário) e a de
 integridade (`_corrupt_record`) são controles diferentes e os dois entram na `ctrl_lote` (D008).
+
+## D011 — Silver em duas etapas: documento parseado (`nfe_doc`) → entidades por MERGE
+
+**Contexto:** o parse do XML é a operação cara; nota, item, pagamento e duplicata saem do mesmo documento.
+**Decisão:**
+- `nfe_doc`: 1 linha por arquivo válido, com o `from_xml` feito **uma vez**. Todas as folhas STRING.
+  O schema da coluna `doc` é o **contrato**: o 03b lê o schema da própria tabela para fazer o parse
+- Mapeamento XML → colunas tipadas em **views SQL** (`vw_nfe_*`); processamento em **PySpark**
+  (stream da bronze, `foreachBatch`, quarentena, dedup, `MERGE`)
+- Tabelas finais criadas por CTAS vazio a partir das views (schema sem repetição) + `CLUSTER BY`
+- Erro (documento inutilizável) → `nfe_quarentena` com o XML; aviso (inconsistência fiscal) → `vw_dq_alertas`
+- Escritas do `foreachBatch` idempotentes com `txnAppId` + `txnVersion`
+**Consequência:** reprocessar uma entidade não exige reparsear XML; mudança de layout = mudar o DDL de
+`nfe_doc` + a view, sem tocar no código PySpark.
+
+## D012 — Reenvio: vale o arquivo mais recente, por chave
+
+**Decisão:** dentro do micro-batch, 1 vencedor por chave (`modificado_em`, `carregado_em`, `arquivo`);
+entre micro-batches, o `MERGE` só atualiza se `s.modificado_em > t.modificado_em`. Itens, pagamentos e
+duplicatas vêm só do arquivo vencedor.
+**Limite conhecido:** se um reenvio tiver **menos** itens que a versão gravada, os itens excedentes ficam.
+No gerador o reenvio é idêntico, então não ocorre. Correção futura: `WHEN NOT MATCHED BY SOURCE` restrito
+às chaves do lote, ou delete+insert por chave numa transação.

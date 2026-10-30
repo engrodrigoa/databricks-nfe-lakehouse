@@ -19,6 +19,17 @@ Atributos XML viram colunas com prefixo `_` (ex.: `n._Id`, `det._nItem`).
 
 ## Silver
 
+### `nfe_doc` — 1 linha por arquivo válido (D011)
+
+Metadados da bronze + `chave_acesso` + `doc` (struct do `from_xml`, **todas as folhas STRING**). Listas do
+XSD como `ARRAY`: `det`, `pag.detPag`, `cobr.dup`, `transp.vol`. O DDL desta coluna é o contrato de parse.
+
+### `nfe_quarentena` — arquivos barrados (erro)
+
+`xml_corrompido` · `chave_invalida` (44 posições + DV) · `chave_divergente_protocolo` (`infNFe/@Id` ≠ `chNFe`)
+· `nao_autorizada` (`cStat` ≠ 100) · `cnpj_emitente_invalido` (formato + 2 DVs). Guarda o XML em `conteudo`.
+
+
 Parse: `from_xml(NFe, <schema do contrato>)` ou `xpath_*` sobre a string da bronze.
 Chave natural: `chave_acesso = substring(n._Id, 4)` (44 dígitos). Reenvio = mesma chave em outro
 arquivo → **vale o último recebido** (`modificado_em`, depois `arquivo`).

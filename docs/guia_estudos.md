@@ -14,9 +14,9 @@ MARCO 2  bronze: 3 formas de ingerir ──────────────�
   Auto Loader (xml) ──────┼─► Delta bronze ─► comparação ─► escolha da bronze oficial
   Auto Loader (text) ─────┘   (_metadata, lote)   (anti join com inventário) ─► D010: text
                                                                     │
-MARCO 3  silver ─────────────────────────────────────────────────────────────────────
-  bronze ─► from_xml(schema do contrato) ─► dedup reenvio ─► MERGE ─► nota·item·pag·dup
-                                         └─► quarentena (corrompido, chave inválida)
+MARCO 3  silver ──────────────────────────────────────────────────────────────────── ◐
+  bronze ─stream─► foreachBatch: from_xml ─► nfe_doc ─► vw_nfe_* (SQL) ─dedup─► MERGE ─► nota·item·pag·dup
+                                        └─► quarentena (corrompido, DV, cStat, CNPJ)   vw_dq_alertas (aviso)
                                                                     │
 MARCO 4  gold ───────────────────────────────────────────────────────────────────────
   silver + referências ─► dimensões ─► ft_nfe_item · ft_nfe_documento ─► ag_ibscbs_mensal
@@ -119,6 +119,44 @@ MARCO 7  consumo e governança ────────────────�
 
 ---
 
-## Marcos 3 a 7
+## Marco 3 — silver
+
+**Conceitos**
+- `from_xml(col, schema, opções)`: parse de string XML com schema explícito; `PERMISSIVE` +
+  `columnNameOfCorruptRecord` separa o malformado. `ARRAY<...>` no schema aceita 1 ou N elementos
+- Delta como fonte de stream: `readStream.table()` lê só commits novos (fonte append-only)
+- `foreachBatch(func)`: cada micro-batch é um DataFrame; permite MERGE e vários destinos
+- Escrita idempotente no `foreachBatch`: `txnAppId` + `txnVersion` (= `batch_id`)
+- `MERGE` (`DeltaTable.merge` / `MERGE INTO`): `whenMatchedUpdateAll(condition=...)`, `whenNotMatchedInsertAll`.
+  A origem **não pode** ter 2 linhas para a mesma chave do destino (erro). Por isso o dedup antes
+- Dedup com janela: `row_number() OVER (PARTITION BY chave ORDER BY ... DESC)` e `rn = 1`
+- `explode` / `posexplode` / `LATERAL VIEW`: de array para linhas (grão do item)
+- Funções de ordem superior: `aggregate`, `transform`, `sequence` (DV módulo 11 e soma de volumes)
+- SQL UDF no Unity Catalog: `CREATE FUNCTION cat.schema.fn(...) RETURNS ... RETURN expr`
+- Constraints Delta: `NOT NULL` e `CHECK`; violação **falha a escrita inteira**
+- Liquid Clustering: `CLUSTER BY (col)` em vez de `PARTITION BY` + `ZORDER`
+- CTAS vazio (`AS SELECT * FROM vw WHERE false`): schema da tabela derivado da view
+
+**Pegadinhas**
+- Serverless = Spark Connect: sem `cache()`/`persist()`; dentro do `foreachBatch`, use `batch_df.sparkSession`
+- ANSI ligado (padrão): `CAST('abc' AS DECIMAL)` dá **erro**; `try_cast` devolve NULL
+- `DESCRIBE HISTORY` não é subconsulta em SQL; em Python, `spark.sql("DESCRIBE HISTORY t")` é DataFrame
+- `operationMetrics` é `map<string,string>`: `col("operationMetrics")["chave"]` e faça cast
+- Data local de `dhEmi` (`-03:00`): `left(dhEmi, 10)`. Convertendo para timestamp, a sessão em UTC pode
+  jogar 23h de um dia para o dia seguinte
+- Campo XML com nome de palavra reservada (`IS`): crase no DDL e no acesso (`` imposto.`IS`.vIS ``)
+
+**Validado localmente antes da plataforma (Spark 4.0)**
+- DV módulo 11 em SQL = gerador em 600 DVs de CNPJ (metade alfanuméricos) + 360 chaves
+- Regras de quarentena: 3 casos plantados (DV, cStat, CNPJ) + 6 truncados, 0 falso positivo
+- Origem do MERGE sem chave duplicada nas 4 entidades; reenvio mais novo venceu
+- Gabarito do gerador: 20/20 anomalias detectadas, 0 falso positivo
+
+**Notas pessoais**
+- _registrar aqui o resultado na plataforma (log por lote, métricas do MERGE, gabarito)_
+
+---
+
+## Marcos 4 a 7
 
 _A preencher conforme o projeto avança. Mesmo formato: conceitos · pegadinhas · notas._
