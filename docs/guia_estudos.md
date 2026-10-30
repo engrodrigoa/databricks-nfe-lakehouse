@@ -9,10 +9,10 @@ Exame vigente (desde 4/mai/2026): **45 questões, 90 min, 7 seções**. Confira 
 MARCO 1  descoberta ───────────────────────────────────────────────────────────────── ✔
   gerador local ─► Volume (UC) ─► spark.read / read_files ─► perguntas (nada gravado)
                                                                     │
-MARCO 2  bronze: 3 formas de ingerir ──────────────────────────────────────────────── ◐
+MARCO 2  bronze: 3 formas de ingerir ──────────────────────────────────────────────── ✔
   COPY INTO ──────────────┐                                         │
   Auto Loader (xml) ──────┼─► Delta bronze ─► comparação ─► escolha da bronze oficial
-  Auto Loader (text) ─────┘   (_metadata, lote)   (anti join com inventário)
+  Auto Loader (text) ─────┘   (_metadata, lote)   (anti join com inventário) ─► D010: text
                                                                     │
 MARCO 3  silver ─────────────────────────────────────────────────────────────────────
   bronze ─► from_xml(schema do contrato) ─► dedup reenvio ─► MERGE ─► nota·item·pag·dup
@@ -75,10 +75,12 @@ MARCO 7  consumo e governança ────────────────�
 | Escala indicada | milhares de arquivos | milhões (listagem incremental / notificação) | idem |
 | Evolução de schema | `mergeSchema` | `schemaLocation` + `schemaEvolutionMode` | não se aplica (1 coluna) |
 | Dados fora do schema | — | `_rescued_data` | — |
-| **Observado: tipo de `NFe`** | _anotar_ | _anotar_ | n/a (`xml` = documento inteiro) |
-| **Observado: truncados (lote_002 = 2)** | _anotar_ | _anotar_ | _anotar_ |
-| **Observado: linhas lote_001 / lote_002** | _anotar_ | _anotar_ | _anotar_ |
-| **Observado: lote_003 carregou só o novo?** | _anotar_ | _anotar_ | _anotar_ |
+| **Observado: tipo de `NFe`** | struct (folhas string) | string (XML bruto) | n/a (`xml` = documento inteiro) |
+| **Observado: truncados (2 + 3)** | linha toda NULL, sem marca | linha toda NULL, `_rescued_data` vazio | conteúdo preservado; `_corrupt_record` no `from_xml` |
+| **Observado: linhas lote_001 / 002 / 003** | 50 / 305 / 503 | 50 / 305 / 503 | 50 / 305 / 503 |
+| **Observado: lote_003 carregou só o novo?** | sim | sim (503) | sim (503) |
+| **Observado: `_metadata.file_path`** | `dbfs:/Volumes/...` | `/Volumes/...` | `/Volumes/...` |
+| **Observado: 2ª execução sem arquivo novo** | _anotar `num_affected_rows` e se criou versão_ | _anotar_ | _anotar_ |
 | `operation` no `DESCRIBE HISTORY` | `COPY INTO` | `STREAMING UPDATE` | `STREAMING UPDATE` |
 
 **Conceitos**
@@ -86,6 +88,9 @@ MARCO 7  consumo e governança ────────────────�
 - `DESCRIBE HISTORY`, `DESCRIBE DETAIL`, time travel (`VERSION AS OF`, `TIMESTAMP AS OF`)
 - Structured Streaming: `readStream` → `writeStream.toTable`, `checkpointLocation`, exactly-once
 - `trigger(availableNow=True)`: batch incremental, processa o pendente e para. É o modo do serverless
+- Contar o que um stream escreveu: versão Delta antes × depois + `operationMetrics.numOutputRows`
+  (`query.lastProgress` veio `None` no serverless após `availableNow`)
+- Tabela **managed** no Free Edition: `DESCRIBE DETAIL` mostra `location` vazio; o UC escolhe e esconde o caminho
 - Checagem de completude: inventário (`binaryFile`) `LEFT ANTI JOIN` tabela
 
 **Quando usar o quê (pergunta clássica)**
@@ -97,9 +102,20 @@ MARCO 7  consumo e governança ────────────────�
 - Apagar a tabela e manter o checkpoint → o stream não recarrega nada
 - `COPY INTO` ignora arquivo já carregado **mesmo se ele mudar**
 - Glob de pasta: `xml/*/*.xml` desce um nível só (o erro da pasta aninhada no marco 1)
+- **Doc × prática:** com rescued data, XML malformado deveria ser "descartado ou gerar erro"; observado:
+  entra como linha NULL silenciosa (COPY INTO e Auto Loader xml)
+- `_metadata.file_path` muda de formato entre leitores (`dbfs:` ou não): normalizar antes de comparar
 
 **Notas pessoais**
-- _registrar aqui as conclusões da comparação_
+- Os três métodos carregaram tudo e são incrementais/idempotentes; a escolha foi decidida pela **integridade**
+  do conteúdo, não pela contagem
+- Parse na entrada (xml) esconde o truncado; texto bruto + parse na silver preserva e expõe → **D010**
+- Dois controles distintos: **completude** (inventário `binaryFile` × tabela) e **integridade**
+  (`_corrupt_record`). "Linha existe" ≠ "documento existe"
+- Completude final (02c seção 2): 0 arquivos faltando nos 3 métodos, 858 arquivos em 3 lotes
+- `DESCRIBE HISTORY` da `nfe_xml_raw`: cada execução = 1 `STREAMING UPDATE` com `epochId` crescente
+  (o epoch é o micro-batch registrado no checkpoint). Conferir `operationMetrics.numOutputRows` das versões 1 e 2
+- Lote_003 conferido com o gerador: 500 notas = 497 válidas + 3 truncadas; 503 arquivos = 500 + 3 reenvios
 
 ---
 

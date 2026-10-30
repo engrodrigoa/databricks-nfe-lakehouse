@@ -34,24 +34,30 @@ ORDER BY lote, metodo;
 
 -- COMMAND ----------
 
+-- `_metadata.file_path` NÃO tem formato único: COPY INTO e binaryFile devolvem `dbfs:/Volumes/...`,
+-- o Auto Loader devolve `/Volumes/...`. Sem normalizar, o anti join acusa tudo como faltando.
 CREATE OR REPLACE TEMP VIEW inventario AS
-SELECT path AS caminho, length AS tamanho_bytes
+SELECT regexp_replace(path, '^dbfs:', '') AS caminho, length AS tamanho_bytes
 FROM read_files('/Volumes/workspace/nfe_bronze/landing/xml/*/*.xml', format => 'binaryFile');
 
-SELECT 'copy_into' AS metodo, i.caminho
-FROM inventario i LEFT ANTI JOIN workspace.nfe_bronze.nfe_xml_copyinto t ON t.caminho = i.caminho
-UNION ALL
-SELECT 'autoloader_xml', i.caminho
-FROM inventario i LEFT ANTI JOIN workspace.nfe_bronze.nfe_xml_autoloader t ON t.caminho = i.caminho
-UNION ALL
-SELECT 'autoloader_text', i.caminho
-FROM inventario i LEFT ANTI JOIN workspace.nfe_bronze.nfe_xml_raw t ON t.caminho = i.caminho;
+SELECT metodo, regexp_extract(caminho, '/(lote_[^/]+)/', 1) AS lote, count(*) AS faltando
+FROM (
+  SELECT 'copy_into' AS metodo, i.caminho FROM inventario i
+  LEFT ANTI JOIN workspace.nfe_bronze.nfe_xml_copyinto t   ON regexp_replace(t.caminho, '^dbfs:', '') = i.caminho
+  UNION ALL
+  SELECT 'autoloader_xml', i.caminho FROM inventario i
+  LEFT ANTI JOIN workspace.nfe_bronze.nfe_xml_autoloader t ON regexp_replace(t.caminho, '^dbfs:', '') = i.caminho
+  UNION ALL
+  SELECT 'autoloader_text', i.caminho FROM inventario i
+  LEFT ANTI JOIN workspace.nfe_bronze.nfe_xml_raw t        ON regexp_replace(t.caminho, '^dbfs:', '') = i.caminho
+)
+GROUP BY ALL
+ORDER BY metodo, lote;
 
 -- COMMAND ----------
 
 -- MAGIC %md
--- MAGIC Se o anti join vier com tudo (ou vazio de forma estranha), compare o formato dos caminhos:
--- MAGIC `_metadata.file_path` pode vir com prefixo `dbfs:` e o inventário sem (ou o contrário).
+-- MAGIC Diagnóstico usado no marco 2: o formato do caminho no inventário × na tabela do Auto Loader.
 
 -- COMMAND ----------
 

@@ -67,8 +67,8 @@ python gerador\gen_nfe.py --inbox data\inbox\lote_002 --n 500 --sujo --manifesto
 | Marco | Entrega | Status |
 |---|---|---|
 | 1 | Unity Catalog (schemas/volumes), massa inicial, exploração do XML, contrato de dados | ✔ |
-| 2 | Bronze: `COPY INTO` × Auto Loader (xml) × Auto Loader (text) | em andamento |
-| 3 | Silver: nota, item, pagamento, duplicata; dedup de reenvio; qualidade | |
+| 2 | Bronze: `COPY INTO` × Auto Loader (xml) × Auto Loader (text) → oficial: Auto Loader text (D010) | ✔ |
+| 3 | Silver: nota, item, pagamento, duplicata; dedup de reenvio; qualidade | próximo |
 | 4 | Gold: modelo dimensional + agregado IBS/CBS mensal | |
 | 5 | Refatoração em Lakeflow Declarative Pipeline + expectations | |
 | 6 | Lakeflow Jobs, Asset Bundles, grants e lineage no Unity Catalog | |

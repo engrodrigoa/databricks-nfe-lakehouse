@@ -39,6 +39,22 @@ def com_controle(df):
         F.current_timestamp().alias("carregado_em"),
     )
 
+
+def versao(tabela):
+    """Versão Delta atual da tabela (-1 se ainda não existe)."""
+    if not spark.catalog.tableExists(tabela):
+        return -1
+    return spark.sql(f"DESCRIBE HISTORY {tabela} LIMIT 1").first().version
+
+
+def linhas_escritas_desde(tabela, v_antes):
+    """Soma numOutputRows dos commits criados depois de v_antes.
+    Sem commit novo = o checkpoint não achou arquivo novo = 0 linhas.
+    (No serverless, query.lastProgress pode vir None após availableNow; o histórico Delta é a fonte confiável.)"""
+    hist = spark.sql(f"DESCRIBE HISTORY {tabela}").filter(F.col("version") > v_antes)
+    total = hist.select(F.sum(F.col("operationMetrics.numOutputRows").cast("long"))).first()[0]
+    return total or 0
+
 # COMMAND ----------
 
 # MAGIC %md
@@ -51,6 +67,7 @@ def com_controle(df):
 
 tabela_b1 = "workspace.nfe_bronze.nfe_xml_autoloader"
 
+v_antes = versao(tabela_b1)
 q1 = (
     spark.readStream.format("cloudFiles")
     .option("cloudFiles.format", "xml")
@@ -66,7 +83,7 @@ q1 = (
     .toTable(tabela_b1)
 )
 q1.awaitTermination()
-print(q1.lastProgress["numInputRows"] if q1.lastProgress else "sem progresso", "linhas nesta execução")
+print(linhas_escritas_desde(tabela_b1, v_antes), "linhas nesta execução")
 
 # COMMAND ----------
 
@@ -88,6 +105,7 @@ display(spark.sql(f"""
 
 tabela_b2 = "workspace.nfe_bronze.nfe_xml_raw"
 
+v_antes = versao(tabela_b2)
 q2 = (
     spark.readStream.format("cloudFiles")
     .option("cloudFiles.format", "text")
@@ -103,7 +121,7 @@ q2 = (
     .toTable(tabela_b2)
 )
 q2.awaitTermination()
-print(q2.lastProgress["numInputRows"] if q2.lastProgress else "sem progresso", "linhas nesta execução")
+print(linhas_escritas_desde(tabela_b2, v_antes), "linhas nesta execução")
 
 # COMMAND ----------
 

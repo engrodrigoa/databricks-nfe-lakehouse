@@ -71,3 +71,16 @@ CNPJ `^[0-9A-Z]{12}[0-9]{2}$` + DV módulo 11 (valor do caractere = código ASCI
 **Por que não `VARCHAR(14)`:** no Delta, `VARCHAR(n)` é STRING com checagem de tamanho na escrita.
 Funciona, mas `dest_doc` guarda CNPJ (14) ou CPF (11), e o formato importa mais que o tamanho.
 Uma regra explícita dá mensagem clara e vai para a quarentena, em vez de falhar a carga inteira.
+
+## D010 — Bronze oficial: Auto Loader `text` + `wholeText` (`nfe_xml_raw`)
+
+**Contexto (marco 2, 858 arquivos em 3 lotes):** os três métodos carregaram as mesmas linhas e nenhum
+perdeu arquivo (inventário × tabela). A diferença foi o tratamento dos 5 truncados (lote_002 = 2, lote_003 = 3):
+- `COPY INTO` (xml) e Auto Loader (xml): o truncado entra como **linha com tudo NULL**, sem marca e sem conteúdo
+  (`num_skipped_corrupt_files = 0`, `_rescued_data` vazio). Só dá para perceber contando `NFe IS NULL`.
+- Auto Loader (text): o arquivo entra **byte a byte**; `from_xml` PERMISSIVE separa o truncado em
+  `_corrupt_record` **com o conteúdo**, pronto para quarentena e investigação.
+**Decisão:** `workspace.nfe_bronze.nfe_xml_raw` é a bronze oficial. O parse vai para a silver (D007).
+`nfe_xml_copyinto` e `nfe_xml_autoloader` são tabelas de estudo e podem ser removidas após o marco 3.
+**Consequência:** "linha existe" ≠ "documento existe": a checagem de completude (inventário) e a de
+integridade (`_corrupt_record`) são controles diferentes e os dois entram na `ctrl_lote` (D008).
