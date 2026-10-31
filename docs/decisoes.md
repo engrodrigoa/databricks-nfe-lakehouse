@@ -120,3 +120,17 @@ No gerador o reenvio é idêntico, então não ocorre. Correção futura: `WHEN 
   CNPJ/CPF como chave natural
 **Consequência:** a gold não tem código de carga: só definições. A ordem de refresh (fato antes do agregado)
 passa a ser responsabilidade da orquestração (marco 6).
+
+## D014 — Pipeline declarativo em schemas paralelos (`nfe_ldp_*`)
+
+**Contexto:** comparar notebooks (imperativo) × Lakeflow Declarative Pipelines (declarativo) com os mesmos arquivos.
+**Decisão:**
+- Um pipeline `nfe_ldp` publica em `nfe_ldp_bronze`, `nfe_ldp_silver`, `nfe_ldp_gold` (nomes totalmente qualificados)
+- Bronze em Python (Auto Loader text, igual ao D010); silver-documento em Python (parse + quarentena por
+  expectation DROP + tabela inversa); entidades em SQL com `AUTO CDC ... SCD TYPE 1` (substitui o MERGE do 03b);
+  participante com `AUTO CDC ... SCD TYPE 2` (`SEQUENCE BY dh_emissao`); gold em MVs com expectations
+- Contrato de parse e UDF de DV reaproveitados da silver dos notebooks (`nfe_doc`, `fn_dv_mod11`)
+- O SQL de mapeamento das entidades é **gerado** a partir das views do 03a (mesmo texto, fonte `STREAM(...)`)
+- Dimensões estáticas reaproveitadas de `workspace.nfe_gold`
+**Consequência:** duas implementações vivas; o mapeamento precisa ficar sincronizado (custo aceito para estudo).
+No marco 6 o Job orquestra uma delas, e a outra vira referência.

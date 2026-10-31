@@ -52,6 +52,7 @@ src/01_exploracao/ leitura exploratória do XML
 src/02_bronze/    três formas de ingestão + comparação
 src/03_silver/    setup (refs, UDF, views SQL) · carga PySpark (stream + MERGE) · qualidade
 src/04_gold/      dimensões · fatos e agregado (MV) · validação e refresh
+src/05_pipeline/  transformations/ (código do pipeline nfe_ldp) · notebook de validação
 data/             massa local gerada (fora do Git)
 ```
 
@@ -71,8 +72,8 @@ python gerador\gen_nfe.py --inbox data\inbox\lote_002 --n 500 --sujo --manifesto
 | 1 | Unity Catalog (schemas/volumes), massa inicial, exploração do XML, contrato de dados | ✔ |
 | 2 | Bronze: `COPY INTO` × Auto Loader (xml) × Auto Loader (text) → oficial: Auto Loader text (D010) | ✔ |
 | 3 | Silver: nfe_doc → nota, item, pagamento, duplicata (MERGE); quarentena; alertas; gabarito 31/31 | ✔ |
-| 4 | Gold: dimensões (TABLE), fatos e agregado (MATERIALIZED VIEW), consumo (VIEW) | em andamento |
-| 5 | Refatoração em Lakeflow Declarative Pipeline + expectations | |
+| 4 | Gold: dimensões (TABLE), fatos e agregado (MATERIALIZED VIEW), consumo (VIEW) | ✔ |
+| 5 | Lakeflow Declarative Pipeline em schemas paralelos: expectations, AUTO CDC SCD1/SCD2, MVs | em andamento |
 | 6 | Lakeflow Jobs, Asset Bundles, grants e lineage no Unity Catalog | |
 | 7 | Dashboard AI/BI e carga contínua até 50k notas | |
 

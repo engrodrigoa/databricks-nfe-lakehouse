@@ -18,11 +18,12 @@ MARCO 3  silver ─────────────────────�
   bronze ─stream─► foreachBatch: from_xml ─► nfe_doc ─► vw_nfe_* (SQL) ─dedup─► MERGE ─► nota·item·pag·dup
                                         └─► quarentena (corrompido, DV, cStat, CNPJ)   vw_dq_alertas (aviso)
                                                                     │
-MARCO 4  gold ─────────────────────────────────────────────────────────────────────── ◐
+MARCO 4  gold ─────────────────────────────────────────────────────────────────────── ✔
   silver + ref ─► dm_* (TABLE) ─► ft_nfe_item · ft_nfe_documento (MV) ─► ag_ibscbs_mensal (MV) ─► vw (VIEW)
                                                                     │
-MARCO 5  Lakeflow Declarative Pipelines ─────────────────────────────────────────────
-  o mesmo fluxo como STREAMING TABLE + MATERIALIZED VIEW + EXPECTATIONS
+MARCO 5  Lakeflow Declarative Pipelines ──────────────────────────────────────────── ◐
+  1 pipeline: STREAMING TABLE (bronze) → expectations + quarentena → AUTO CDC SCD1 (entidades)
+              → AUTO CDC SCD2 (participante) → MV gold com point-in-time. Schemas nfe_ldp_* (D014)
                                                                     │
 MARCO 6  operação ───────────────────────────────────────────────────────────────────
   Lakeflow Jobs (DAG, retries, file arrival) · ctrl_lote (D008) · Asset Bundles · CLI
@@ -192,10 +193,40 @@ MARCO 7  consumo e governança ────────────────�
 - Reconciliação com diferença 0; órfão só em `sk_tributacao` (= itens com `cclasstrib_incoerente`)
 
 **Resultado na plataforma**
-- _anotar: reconciliação, órfãos, refresh com lote_004 (meses reabertos), técnica do refresh no event log_
+- Antes do lote_004: 845 notas / 2.496 itens · depois: 1.344 / 4.030 · reconciliação com diferença 0 nos dois
+- Órfãos só em `sk_tributacao`: 4 → 7 (acompanha os `cclasstrib_incoerente` dos manifestos)
+- Notas de ago–set chegando depois: o `REFRESH` reabriu os meses sem lógica de "mês afetado"
+- Data em UTC × local: nota `2026-09-04T01:18 UTC` = `2026-09-03 22:18 -03:00` → `sk_data = 20260903` ✔
+  (por isso `sk_data` sai de `left(dhEmi, 10)`, e análise por dia usa `sk_data`, não `to_date(dh_emissao)`)
+- Formato de data: `MM` = mês, `mm` = minuto (Java). No Oracle o caso não importa; no Spark importa
 
 ---
 
-## Marcos 5 a 7
+## Marco 5 — Lakeflow Declarative Pipelines
+
+**Conceitos**
+- Declarativo: você define **o quê** (tabelas e views); o pipeline resolve **a ordem** (grafo), o estado
+  (checkpoints) e o incremental. Python: `from pyspark import pipelines as dp`; SQL: `CREATE OR REFRESH ...`
+- Objetos: `STREAMING TABLE` (append incremental) · `MATERIALIZED VIEW` · `TEMPORARY VIEW` (só dentro do pipeline)
+- Expectations: `EXPECT` (warn, só registra) · `ON VIOLATION DROP ROW` · `ON VIOLATION FAIL UPDATE`.
+  Python: `@dp.expect`, `@dp.expect_or_drop`, `@dp.expect_or_fail`. Métricas no `event_log`
+- Quarentena em pipeline: expectation DROP no caminho bom + tabela com o filtro inverso
+- `AUTO CDC` (antigo `APPLY CHANGES`): `KEYS`, `SEQUENCE BY` (ordem, inclusive fora de ordem),
+  `STORED AS SCD TYPE 1 | 2`, `TRACK HISTORY ON`, `COLUMNS * EXCEPT`. SCD2 ganha `__START_AT` / `__END_AT`
+- Point-in-time join: fato × dimensão SCD2 por chave **e** `data >= início AND (fim IS NULL OR data < fim)`
+- Modos: **Triggered** × **Continuous** · **Development** × **Production** · **Start** × **Full refresh** · **Dry run**
+
+**Pegadinhas**
+- Full refresh em streaming table reprocessa da fonte: se a fonte perdeu arquivos, perde dado
+- SCD2 precisa de estado se a fonte sobrescreve; com fonte histórica, dá para derivar com `lag()` (comparado no 05)
+- Expectation é avaliada sobre a **saída** da função/consulta: a coluna da regra precisa existir ali
+- Duas implementações do mesmo mapeamento = risco de divergência (D014)
+
+**Resultado na plataforma**
+- _anotar: notebooks × pipeline (seção 1), versões SCD2, janela × AUTO CDC, expectations no event log, lote_005_
+
+---
+
+## Marcos 6 e 7
 
 _A preencher conforme o projeto avança. Mesmo formato: conceitos · pegadinhas · notas._
