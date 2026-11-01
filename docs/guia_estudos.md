@@ -262,8 +262,25 @@ MARCO 7  consumo e governança ────────────────�
 - Task value de task que não rodou: volta o `default` do `get`
 - Notebook de Job com stream precisa do **mesmo checkpoint** do notebook original para não reprocessar
 
-**Resultado na plataforma**
-- _anotar: run sem lote (condição false), run com lote_005, gatilho por arquivo, ctrl_lote, bundle deploy_
+**Resultado na plataforma (6a, Job pela UI)**
+- Run com lote_005 disparada **sozinha** (*Launched: By file arrival*): 7 tasks ✔, notebooks × pipeline = 0,
+  `ctrl_lote` = OK nos 5 lotes. Duração 4m19 = ramo mais lento (pipeline 3m32), não a soma: **caminho crítico**
+- Run extra sem ação humana: arquivos do lote continuaram chegando **durante** a run → novo disparo foi para a
+  **fila** (`max_concurrent_runs = 1` + queue) e começou quando a anterior terminou. Inofensiva: bronze achou 0
+  (checkpoint), condição false. Correção: *Wait after last change* (120 s) no gatilho
+- Regra observada de **exclusão** (ramo false do If/else):
+  | Task | Dependências | Run if | Resultado |
+  |---|---|---|---|
+  | reconcilia | gold (excluded) + pipeline (✔) | All succeeded | **Excluded** |
+  | ctrl_lote v1 | reconcilia (excluded) | All done | **Excluded** |
+  | ctrl_lote v2 | todas (bronze ✔, pipeline ✔, demais excluded) | All done | **Rodou** ✔ |
+  → exclusão se propaga; `All done` só salva a task se alguma dependência **executou**. Task de log/auditoria
+  deve depender de tudo, inclusive de tasks que sempre rodam
+- `ctrl_lote` agora registra também execuções sem dado (`SEM_ARQUIVO_NOVO`, `diferencas = -1`)
+- *Lineage* do Job: 18 tabelas upstream, 14 downstream, capturadas pelo UC sem documentação manual
+- *Insights* (Performance Observability) nas tasks pesadas: assunto da seção 6 (troubleshooting)
+
+**Pendente (6b):** o mesmo Job por bundle + CLI
 
 ---
 

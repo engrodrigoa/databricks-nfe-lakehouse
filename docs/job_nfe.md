@@ -21,10 +21,14 @@ Caminhos: os notebooks ficam em `src/06_jobs/` do Git folder.
 | 6 | `reconcilia` | Notebook | `j04_reconcilia` | gold, pipeline | — |
 | 7 | `ctrl_lote` | Notebook | `j05_ctrl_lote` | **todas** as anteriores | **Run if: All done** · Parameter `run_id` = `{{job.run_id}}` |
 
+> ⚠️ Testado: se a `ctrl_lote` depender só de `reconcilia`, ela é **excluída** junto com o ramo falso, mesmo com
+> *All done*. Ela precisa de pelo menos uma dependência que sempre executa (bronze, pipeline).
+
 **Job details (painel direito):**
 - **Max concurrent runs: 1**: duas execuções simultâneas brigariam pelos mesmos checkpoints
-- **Trigger → File arrival**: `/Volumes/workspace/nfe_bronze/landing/xml/` · *Wait after last change* 120 s
-  (espera o upload do lote inteiro). Deixe **Paused** até o primeiro teste manual dar certo
+- **Trigger → File arrival**: `/Volumes/workspace/nfe_bronze/landing/xml/` · em **Advanced**:
+  *Wait after last change* 120 s (espera o upload do lote inteiro) e *Minimum time between triggers* 60 s.
+  Sem isso, um upload longo gera disparo extra (testado). Deixe **Paused** até o primeiro teste manual dar certo
 
 ### Testes (nesta ordem)
 
