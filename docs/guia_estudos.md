@@ -25,8 +25,9 @@ MARCO 5  Lakeflow Declarative Pipelines ─────────────�
   1 pipeline: STREAMING TABLE (bronze) → expectations + quarentena → AUTO CDC SCD1 (entidades)
               → AUTO CDC SCD2 (participante) → MV gold com point-in-time. Schemas nfe_ldp_* (D014)
                                                                     │
-MARCO 6  operação ───────────────────────────────────────────────────────────────────
-  Lakeflow Jobs (DAG, retries, file arrival) · ctrl_lote (D008) · Asset Bundles · CLI
+MARCO 6  operação ────────────────────────────────────────────────────────────────── ◐
+  Job nfe_job: file arrival ─► [bronze ─► condição ─► silver ─► gold] ∥ [pipeline] ─► reconcilia ─► ctrl_lote
+  + o mesmo Job em YAML (bundle) implantado pela CLI (D015)
                                                                     │
 MARCO 7  consumo e governança ───────────────────────────────────────────────────────
   GRANT/REVOKE · máscara de coluna · row filter · lineage · AI/BI Dashboard · 50k notas
@@ -241,6 +242,31 @@ MARCO 7  consumo e governança ────────────────�
 
 ---
 
-## Marcos 6 e 7
+## Marco 6 — Lakeflow Jobs e bundles
+
+**Conceitos**
+- Job = DAG de **tasks** (Notebook, Pipeline, SQL, Python, If/else condition, For each, Run job...)
+- Status de task de notebook = exceção ou não. `dbutils.notebook.exit()` só devolve texto;
+  **task values** (`dbutils.jobs.taskValues.set/get`) passam dados entre tasks e alimentam condições
+- `%run` (mesmo contexto, reaproveita variáveis) × `dbutils.notebook.run` (isolado, devolve o `exit`)
+- `run_if`: `ALL_SUCCESS` (padrão) · `ALL_DONE` · `AT_LEAST_ONE_SUCCESS` · `NONE_FAILED` · `AT_LEAST_ONE_FAILED` · `ALL_FAILED`
+- Gatilhos: agendado (cron) · **file arrival** · **table update** · contínuo. Tempo × dado (pergunta clássica)
+- Retries por task; **Repair run** reexecuta só o que falhou; `max_concurrent_runs`
+- Parâmetros dinâmicos: `{{job.run_id}}`, `{{tasks.<t>.values.<k>}}`
+- Bundle: `databricks.yml` (projeto, variáveis, targets dev/prod) + `resources/*.yml`;
+  `databricks bundle validate | deploy | run`; `mode: development` prefixa nomes e pausa gatilhos
+
+**Pegadinhas**
+- `try/except` que engole o erro deixa a task verde com dado errado: re-lance ou use `assert`
+- Célula de estudo (INSERT de teste, display de diagnóstico) não pertence a notebook de Job
+- Task value de task que não rodou: volta o `default` do `get`
+- Notebook de Job com stream precisa do **mesmo checkpoint** do notebook original para não reprocessar
+
+**Resultado na plataforma**
+- _anotar: run sem lote (condição false), run com lote_005, gatilho por arquivo, ctrl_lote, bundle deploy_
+
+---
+
+## Marco 7
 
 _A preencher conforme o projeto avança. Mesmo formato: conceitos · pegadinhas · notas._

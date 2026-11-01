@@ -1,0 +1,25 @@
+# Asset Bundle (no exame de 2026: "Declarative Automation Bundles"): o projeto como código implantável.
+# O host NÃO fica aqui (repo público): vem do perfil da Databricks CLI (`databricks auth login`).
+bundle:
+  name: databricks-nfe-lakehouse
+
+include:
+  - resources/*.yml
+
+variables:
+  nfe_ldp_id:
+    description: id do pipeline nfe_ldp criado pela UI no marco 5 (o bundle referencia, não recria)
+    lookup:
+      pipeline: nfe_ldp
+  pausa_gatilho:
+    description: UNPAUSED liga o gatilho de chegada de arquivo; PAUSED deixa só execução manual
+    default: PAUSED
+
+targets:
+  dev:
+    mode: development     # prefixa "[dev <usuário>]" nos nomes e pausa gatilhos: seguro para testar
+    default: true
+  prod:
+    mode: production
+    variables:
+      pausa_gatilho: UNPAUSED

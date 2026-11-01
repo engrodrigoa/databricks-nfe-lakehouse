@@ -134,3 +134,19 @@ passa a ser responsabilidade da orquestração (marco 6).
 - Dimensões estáticas reaproveitadas de `workspace.nfe_gold`
 **Consequência:** duas implementações vivas; o mapeamento precisa ficar sincronizado (custo aceito para estudo).
 No marco 6 o Job orquestra uma delas, e a outra vira referência.
+
+## D015 — Orquestração: um Job com os dois ramos, condição, reconciliação e log
+
+**Contexto:** marco 6. Duas implementações vivas (D014); a prova cobra tipos de task, dependências,
+condições, retries, gatilhos e bundles.
+**Decisão:**
+- Job `nfe_job` com gatilho *file arrival* no Volume, `max_concurrent_runs = 1`
+- Ramo notebooks: `bronze` → condição `arquivos_novos > 0` (task value) → `silver` → `gold`
+- Ramo pipeline: task `pipeline` (nfe_ldp) em paralelo, a partir da raiz
+- `reconcilia` junta os ramos e **falha de propósito** se divergirem (Job verde = dado consistente)
+- `ctrl_lote` com `run_if: ALL_DONE` grava o log por lote e por execução (D008), inclusive de runs com falha
+- Notebooks de Job enxutos em `src/06_jobs` (bronze reescrita com o mesmo checkpoint; silver via `%run` do 03b)
+- Definição como código em `databricks.yml` + `resources/nfe_job.yml`; host fora do repo (vem da CLI);
+  pipeline referenciado por `lookup`, não recriado
+**Consequência:** o projeto roda sozinho ao chegar um lote, e cada execução deixa rastro auditável.
+Próximo passo natural: o pipeline também como recurso do bundle (exige recriar, porque hoje pertence à UI).
