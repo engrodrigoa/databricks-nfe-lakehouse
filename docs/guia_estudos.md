@@ -21,7 +21,7 @@ MARCO 3  silver ─────────────────────�
 MARCO 4  gold ─────────────────────────────────────────────────────────────────────── ✔
   silver + ref ─► dm_* (TABLE) ─► ft_nfe_item · ft_nfe_documento (MV) ─► ag_ibscbs_mensal (MV) ─► vw (VIEW)
                                                                     │
-MARCO 5  Lakeflow Declarative Pipelines ──────────────────────────────────────────── ◐
+MARCO 5  Lakeflow Declarative Pipelines ──────────────────────────────────────────── ✔
   1 pipeline: STREAMING TABLE (bronze) → expectations + quarentena → AUTO CDC SCD1 (entidades)
               → AUTO CDC SCD2 (participante) → MV gold com point-in-time. Schemas nfe_ldp_* (D014)
                                                                     │
@@ -223,7 +223,21 @@ MARCO 7  consumo e governança ────────────────�
 - Duas implementações do mesmo mapeamento = risco de divergência (D014)
 
 **Resultado na plataforma**
-- _anotar: notebooks × pipeline (seção 1), versões SCD2, janela × AUTO CDC, expectations no event log, lote_005_
+- Notebooks × pipeline: diferença **0** em todas as camadas (1.364 arquivos · 6 quarentena · 1.358 docs ·
+  1.344 notas · 4.030 itens · 1.344 pagamentos · 1.486 duplicatas · v_cbs 345.508,55)
+- SCD2: 1.145 participantes, 1.148 versões, 3 com mudança de razão social · janela (`lag`) = AUTO CDC = 1.148
+- Point-in-time: notas de ago–set apontam para a razão social antiga; as de out, para a nova
+- `event_log`: `documento_aprovado` 6 descartes (= quarentena) · `tributacao_conhecida` 7 falhas em *warn*
+  (= órfãos do 04c), registradas e mantidas · `chave_44` (fail) 0
+- Bronze em **2 micro-batches** (1.000 + 364): o Auto Loader limita a ~1.000 arquivos por micro-batch
+  por padrão (`cloudFiles.maxFilesPerTrigger`)
+- MVs com **Full recompute** na 1ª execução (coluna *Incrementalization* no grafo)
+- Nomes de *flow* (`participante_scd2`) ficam no schema padrão do pipeline, mesmo com o destino em outro schema
+
+**Pegadinha de modelagem (SCD2 derivado de documentos)**
+- `vigencia_inicio` = **primeira nota observada** com o cadastro novo, não a data real da alteração. Ex.: AGRO
+  HORIZONTE: última nota antiga em 15/09, primeira nova em 22/10; a mudança real ocorreu entre as duas.
+  Para a data oficial, a fonte seria o cadastro de contribuintes (e aí o SCD2 viria dele)
 
 ---
 

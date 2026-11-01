@@ -73,7 +73,7 @@ python gerador\gen_nfe.py --inbox data\inbox\lote_002 --n 500 --sujo --manifesto
 | 2 | Bronze: `COPY INTO` × Auto Loader (xml) × Auto Loader (text) → oficial: Auto Loader text (D010) | ✔ |
 | 3 | Silver: nfe_doc → nota, item, pagamento, duplicata (MERGE); quarentena; alertas; gabarito 31/31 | ✔ |
 | 4 | Gold: dimensões (TABLE), fatos e agregado (MATERIALIZED VIEW), consumo (VIEW) | ✔ |
-| 5 | Lakeflow Declarative Pipeline em schemas paralelos: expectations, AUTO CDC SCD1/SCD2, MVs | em andamento |
+| 5 | Lakeflow Declarative Pipeline em schemas paralelos: expectations, AUTO CDC SCD1/SCD2, MVs (= notebooks, diferença 0) | ✔ |
 | 6 | Lakeflow Jobs, Asset Bundles, grants e lineage no Unity Catalog | |
 | 7 | Dashboard AI/BI e carga contínua até 50k notas | |
 
