@@ -79,10 +79,11 @@ vira tasks, e as tasks viram código revisável em PR. Detalhes: [docs/job_nfe.m
 
 | Controle | Linha | Onde roda |
 |---|---|---|
-| Completude Volume × bronze, balanço bronze = quarentena + válidos | observabilidade | `ctrl_lote`, toda execução |
+| Completude origem (`_lote.json`) × Volume × bronze; balanço bronze = quarentena + válidos; `nfe_doc` → `nfe_nota` | observabilidade | `ctrl_lote`, toda execução |
 | Reconciliação notebooks × pipeline com corte comum, falha de propósito | observabilidade | `j04_reconcilia`, toda execução |
 | Quarentena por motivo + constraints Delta | qualidade (erro, bloqueia) | silver, toda execução |
 | Alertas fiscais: totais × soma dos itens, CST × cClassTrib, códigos fora da referência | qualidade (aviso) | `j06_dq` → `ctrl_dq`, toda execução |
+| Reenvio entre cargas (mesma chave em outra entrega) | qualidade (aviso) | `j06_dq` → `ctrl_dq`, toda execução |
 | Gabarito: anomalias injetadas pelo gerador × detectadas (31/31) | teste dos testes | `03c` |
 | Chaves órfãs na gold (o Delta não força FK) | integridade | `j06_dq` → `ctrl_dq`, toda execução |
 
@@ -130,7 +131,9 @@ databricks fs cp data\manifesto_lote_NNN.csv dbfs:/Volumes/workspace/nfe_bronze/
 ```
 
 O upload dispara o `nfe_job` (*file arrival*). `--sujo` injeta ≈2% de inconsistência fiscal, 1% de reenvio e
-0,5% de XML truncado; o manifesto registra cada anomalia (gabarito).
+0,5% de XML truncado; o manifesto registra cada anomalia (gabarito). Cada lote é uma entrega única: o gerador
+recusa pasta ou manifesto já usados e grava `_lote.json` com a quantidade de arquivos, que a `ctrl_lote` confere
+com o que chegou ao Volume.
 
 ## Roadmap
 

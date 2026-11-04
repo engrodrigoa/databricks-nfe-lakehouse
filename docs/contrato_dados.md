@@ -96,7 +96,9 @@ Ler sempre com schema explícito em string (códigos com zero à esquerda).
 | `chave_acesso` com 44 posições e DV módulo 11 válido | erro | quarentena |
 | CNPJ `^[0-9A-Z]{12}[0-9]{2}$` + DV; CPF `^[0-9]{11}$` (D009) | erro | quarentena |
 | `p.cStat = 100` (autorizada) | erro | quarentena |
-| Reenvio da mesma chave | info | dedup, vale o mais recente |
+| Reenvio da mesma chave no mesmo lote | info | dedup, vale o mais recente |
+| Reenvio da mesma chave em outra entrega (`reenvio_entre_cargas`) | aviso | dedup + registra na `ctrl_dq` (D019) |
+| Arquivos no Volume < `_lote.json` da origem | erro de processo | `ctrl_lote` = INCOMPLETO (D019) |
 | Total CBS ≠ Σ `v_cbs` dos itens | aviso | mantém + registra |
 | `v_bc_ibscbs` total ≠ Σ itens | aviso | mantém + registra |
 | `cclasstrib` incompatível com `cst_ibscbs` (`ref_classtrib`) | aviso | mantém + registra |

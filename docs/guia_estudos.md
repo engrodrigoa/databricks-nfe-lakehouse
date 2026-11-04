@@ -349,5 +349,13 @@ referência?). Mapa completo em [fluxo.md](fluxo.md).
 - Teste de 300 notas com `--sujo` pela CLI: gatilho disparou durante o `fs cp -r` (07:40, 301 arquivos); nova run
   às 07:47 leu o restante; `reconcilia` acusou bronze 5.101 × 5.161 e nfe_doc 5.076 × 5.136 (+60 arquivos lidos só
   pelo pipeline); run marcada *Succeeded* / `SuccessWithFailures`. Correção: corte comum (D017)
-- _Após o patch 7a: anotar a run seguinte com a reconciliação usando o corte_
-- _Após o patch 7b: anotar a primeira linha da `ctrl_dq` e a duração gravada na `ctrl_lote`_
+- 7a: run seguinte com `ctrl_lote` = OK, o que exige `diferencas = 0`: a `reconcilia` com corte comum passou
+- 7b: `ctrl_lote.inicio_run` gravado, duração 306 s; `ctrl_dq` com as 17 regras, zeros explícitos;
+  `orfao_sk_tributacao` = `cclasstrib_incoerente` = 30 (o mesmo defeito visto na silver e na gold)
+- **Incidente `lote_009` (gabarito como detector):** manifesto 65 anomalias × `qtd_carga` 1. Investigação em camadas:
+  quarentena 14 = 14 ✔, reenvios 17 = 17 ✔, avisos "0" ✘ → local 1617 × Volume 1579 (cópia parou: 38 faltando) →
+  `notas_vigentes` = 0 → as chaves estavam na `nfe_nota` com `lote_010` (1487) e `lote_011` (61): **mesma seed
+  reutilizada** = mesmas chaves = reenvio em massa; vale o último, então a nota mudou de lote. O pipeline estava
+  certo; o gabarito filtrava pelo lote da nota (errado: o lote da nota é o do arquivo vencedor)
+- Lições (D019): lote não serve de unidade para a silver; toda fronteira precisa de controle (origem → Volume,
+  nfe_doc → nfe_nota); reenvio entre cargas é sinal operacional da origem; a origem deve falhar cedo

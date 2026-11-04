@@ -7,6 +7,7 @@
 # MAGIC  severidade    camada  regras                                     fonte
 # MAGIC  erro          silver  5 motivos de quarentena                    nfe_quarentena (detectado_em)
 # MAGIC  aviso         silver  6 regras fiscais / de referência           vw_dq_alertas × nfe_nota (carregado_em)
+# MAGIC  aviso         silver  reenvio_entre_cargas (D019)                nfe_doc: chave que reaparece em outro lote
 # MAGIC  integridade   gold    6 chaves órfãs da fato                     ft_nfe_item × dimensões
 # MAGIC ```
 # MAGIC Duas medidas por regra:
@@ -53,6 +54,15 @@ REGRAS = (
         f"""SELECT DISTINCT a.chave_acesso AS unidade, n.carregado_em AS quando
             FROM {S}.vw_dq_alertas a JOIN {S}.nfe_nota n USING (chave_acesso) WHERE a.regra = '{a}'""")
        for a in ALERTAS]
+    # Reenvio entre cargas: a mesma chave chega de novo em OUTRA entrega (pasta de lote da origem).
+    # O dado continua certo (vale o último), mas a origem reenviou: em massa, é sinal de problema no emissor.
+    # Evento = (chave, lote) a partir do 2º lote em que a chave aparece; quando = entrada desse lote.
+    + [("aviso", "silver", "reenvio_entre_cargas",
+        f"""SELECT chave_acesso AS unidade, quando
+            FROM (SELECT chave_acesso, lote, min(carregado_em) AS quando,
+                         row_number() OVER (PARTITION BY chave_acesso ORDER BY min(carregado_em)) AS ordem
+                  FROM {S}.nfe_doc GROUP BY chave_acesso, lote)
+            WHERE ordem > 1""")]
     + [("integridade", "gold", f"orfao_{k}", f"SELECT 1 AS unidade, f.quando FROM {FATO} f {join}")
        for k, join in ORFAOS.items()]
 )

@@ -38,6 +38,7 @@ from __future__ import annotations
 import argparse
 import base64
 import csv
+import json
 import os
 import random
 import string
@@ -628,6 +629,17 @@ def main():
         if getattr(a, k) is None:
             setattr(a, k, v if a.sujo else 0.0)
 
+    # Cada lote é uma entrega única: nunca gerar por cima de outra (D019).
+    # Pasta reaproveitada mistura duas entregas sob o mesmo rótulo; manifesto em append mistura dois gabaritos.
+    existentes = list(a.inbox.glob("*.xml")) if a.inbox.exists() else []
+    if existentes:
+        raise SystemExit(f"{a.inbox} já tem {len(existentes)} XML. Use outro nome de lote (cada lote é uma entrega única).")
+    if a.manifesto and a.manifesto.exists():
+        raise SystemExit(f"{a.manifesto} já existe. Um manifesto por lote; escolha outro nome.")
+    if a.seed is None:                      # registrada no _lote.json: o lote pode ser reproduzido
+        a.seed = random.SystemRandom().randrange(1, 10**9)
+    print(f"seed das notas: {a.seed}  (mesma seed + mesmo período = mesmas chaves = reenvio em massa)")
+
     a.inbox.mkdir(parents=True, exist_ok=True)
     rng = random.Random(a.seed)
     cad = Cadastro(a.seed_cadastro, a.emitentes, n_dest_pj=a.emitentes * 3, n_dest_pf=a.emitentes * 5,
@@ -640,6 +652,7 @@ def main():
     ET.register_namespace("ds", DS)
 
     manifesto = []
+    escritos = 0
     for lote in range(1, a.lotes + 1):
         agora = datetime.now().replace(microsecond=0)
         ini = datetime.combine(a.data_ini, datetime.min.time()) if a.data_ini else agora - timedelta(days=1)
@@ -663,12 +676,14 @@ def main():
                 manifesto.append((lote, arquivo.name, chave, "xml_corrompido"))
                 cont["corrompido"] += 1
             escrever_atomico(arquivo, xml)
+            escritos += 1
             if defeito:
                 manifesto.append((lote, arquivo.name, chave, defeito))
                 cont["defeito"] += 1
             if rng.random() < a.dup_rate:                               # reenvio do mesmo documento
                 dup = a.inbox / f"{chave}-{sufixo}-reenvio{rng.randint(1, 9)}.xml"
                 escrever_atomico(dup, xml)
+                escritos += 1
                 manifesto.append((lote, dup.name, chave, "duplicada"))
                 cont["dup"] += 1
             cont["ok"] += 1
@@ -678,12 +693,17 @@ def main():
             time.sleep(a.intervalo)
 
     if a.manifesto and manifesto:
-        novo = not a.manifesto.exists()
-        with open(a.manifesto, "a", newline="", encoding="utf-8") as f:
+        with open(a.manifesto, "w", newline="", encoding="utf-8") as f:
             w = csv.writer(f)
-            if novo:
-                w.writerow(["lote", "arquivo", "chave", "anomalia"])
+            w.writerow(["lote", "arquivo", "chave", "anomalia"])
             w.writerows(manifesto)
+
+    # Arquivo de controle (trailer): a origem declara quantos arquivos enviou. A ctrl_lote compara com o Volume
+    # e acusa INCOMPLETO se o upload parar no meio. Escrito por último: só existe se a geração terminou.
+    controle = {"lote": a.inbox.name, "arquivos": escritos, "notas": a.n * a.lotes, "seed": a.seed,
+                "gerado_em": datetime.now().replace(microsecond=0).isoformat()}
+    escrever_atomico(a.inbox / "_lote.json", json.dumps(controle, ensure_ascii=False))
+    print(f"controle: {a.inbox / '_lote.json'} ({escritos} arquivos)")
 
 
 

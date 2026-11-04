@@ -187,3 +187,20 @@ status da run escondendo falhas (`SuccessWithFailures`: a folha `ctrl_lote`, com
 - O status da `ctrl_lote` abre o painel (leitor = operador; sem alerta por e-mail), nunca o status do Job
 - Eixo temporal do painel = carga (data/hora), não lote: em produção só existem arquivos chegando
 **Consequência:** observabilidade e qualidade sobrevivem à troca ou recriação do Job e ficam consultáveis em SQL.
+
+## D019 — Fronteiras vigiadas: arquivo de controle, nfe_doc → nfe_nota e reenvio entre cargas
+
+**Contexto:** o gabarito do `lote_009` não fechou. Causa: o comando de geração foi reutilizado com a mesma seed
+(mesmas chaves) em outras pastas, e o manifesto foi acrescentado em vez de recriado. O pipeline seguiu o
+contrato (reenvio: vale o último), mas três fronteiras estavam sem vigilância: a cópia para o Volume parou no
+meio (38 arquivos), o balanço não conferia `nfe_doc → nfe_nota`, e 1.500 reenvios entre lotes passaram como OK.
+**Decisão:**
+- Origem: o gerador recusa pasta de lote com XML e manifesto existente; grava `_lote.json` (arquivos, notas, seed)
+- `ctrl_lote.arquivos_esperados` (do `_lote.json`) × `arquivos_volume`: menor → `INCOMPLETO`, mesmo em run sem
+  arquivo novo
+- `ctrl_lote.chaves_sem_nota`: conferência **global** por chave (a nota pertence ao lote do reenvio vencedor,
+  então por lote daria alarme falso)
+- `ctrl_dq` ganha `reenvio_entre_cargas` (aviso): o dado está certo, mas a origem reenviou
+- Gabarito sempre por chave/arquivo, nunca pelo `lote` da `nfe_nota`
+**Consequência:** cada fronteira do fluxo tem um controle; erro operacional na origem aparece no primeiro número
+do painel, não três camadas depois.

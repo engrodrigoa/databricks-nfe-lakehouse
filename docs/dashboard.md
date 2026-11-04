@@ -36,13 +36,15 @@ esconde falhas de tasks intermediárias (`SuccessWithFailures`). As tabelas `ctr
 | Task `dq` (`j06_dq`) depois da `gold` | alertas, quarentena por motivo e órfãos rodam a cada carga |
 | Tabela `nfe_bronze.ctrl_dq` | retrato por run: `qtd_carga` (o que entrou nesta carga) e `qtd_total` (estado atual) |
 | `ctrl_lote.inicio_run` | duração = `executado_em − inicio_run`, sem depender do orquestrador |
+| `ctrl_lote.arquivos_esperados` e `chaves_sem_nota` (7b+) | fronteiras origem → Volume e nfe_doc → nfe_nota vigiadas (D019) |
 
-`ctrl_dq`, uma linha por run × regra (17 regras):
+`ctrl_dq`, uma linha por run × regra (18 regras):
 
 | severidade | camada | regras | unidade |
 |---|---|---|---|
 | `erro` | silver | 5 motivos de quarentena | arquivo |
 | `aviso` | silver | `tot_cbs_divergente`, `vbc_ibscbs_divergente`, `cclasstrib_incoerente`, NCM/CFOP/município fora da referência | nota |
+| `aviso` | silver | `reenvio_entre_cargas`: chave que chega de novo em outra entrega (D019) | nota |
 | `integridade` | gold | `orfao_sk_data`, `orfao_sk_operacao`, `orfao_sk_tributacao`, `orfao_ncm`, `orfao_cfop`, `orfao_cod_mun_emitente` | item |
 
 `orfao_sk_tributacao` > 0 é esperado: é o alerta `cclasstrib_incoerente` da silver reaparecendo como FK órfã.
@@ -81,7 +83,8 @@ FROM workspace.nfe_bronze.ctrl_lote
 GROUP BY run_id;
 
 -- ds_lotes_ultima_carga: o que não está OK na execução mais recente
-SELECT lote, arquivos_volume, arquivos_bronze, faltando_na_bronze, quarentena, docs_validos, status
+SELECT lote, arquivos_esperados, arquivos_volume, arquivos_bronze, faltando_na_bronze, quarentena, docs_validos,
+       chaves_sem_nota, status
 FROM workspace.nfe_bronze.ctrl_lote
 WHERE run_id = (SELECT max_by(run_id, executado_em) FROM workspace.nfe_bronze.ctrl_lote)
   AND status NOT IN ('OK', 'SEM_ARQUIVO_NOVO');
