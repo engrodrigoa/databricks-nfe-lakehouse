@@ -1,0 +1,45 @@
+# CI/CD do bundle (seção 5 da prova: "Databricks CLI em workflows de CI/CD")
+#
+#   push / pull request ──► validate (target dev)          erro de YAML aparece no PR, antes do workspace
+#   execução manual     ──► validate ──► deploy -t prod     publicar é uma decisão humana (workflow_dispatch)
+#
+# Secrets no GitHub (Settings → Secrets and variables → Actions): DATABRICKS_HOST e DATABRICKS_TOKEN.
+# O host do workspace fica no secret, nunca no código (repositório público).
+name: bundle
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: bundle-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    env:
+      DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: databricks/setup-cli@main
+      - name: databricks bundle validate (dev)
+        run: databricks bundle validate -t dev
+      - name: databricks bundle validate (prod)
+        run: databricks bundle validate -t prod
+
+  deploy-prod:
+    if: github.event_name == 'workflow_dispatch'
+    needs: validate
+    runs-on: ubuntu-latest
+    env:
+      DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: databricks/setup-cli@main
+      - name: databricks bundle deploy (prod)
+        run: databricks bundle deploy -t prod

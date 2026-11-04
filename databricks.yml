@@ -20,6 +20,15 @@ targets:
     mode: development     # prefixa "[dev <usuário>]" nos nomes e pausa gatilhos: seguro para testar
     default: true
   prod:
-    mode: production
+    mode: production      # nomes sem prefixo, gatilhos valendo; valida identidade e permissões
+    # Sem service principal (Free Edition, identidade pessoal), o modo production exige run_as e permissions
+    # explícitos e não aceita root_path em pasta de usuário. Em empresa: run_as = service principal.
+    workspace:
+      root_path: /Workspace/Shared/.bundle/${bundle.name}/${bundle.target}
+    run_as:
+      user_name: ${workspace.current_user.userName}
+    permissions:
+      - user_name: ${workspace.current_user.userName}
+        level: CAN_MANAGE
     variables:
       pausa_gatilho: UNPAUSED

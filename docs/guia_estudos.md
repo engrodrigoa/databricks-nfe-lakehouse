@@ -292,7 +292,14 @@ MARCO 7  consumo e governança ────────────────�
 - `databricks jobs get <id> -o json`: conferir configuração real (ex.: `wait_after_last_change_seconds`)
 - **`bundle validate` ≠ garantia de deploy**: valida YAML/caminhos localmente; regras de negócio só na API.
   Ex.: dependência de If/else sem `outcome` → `400 INVALID_PARAMETER_VALUE` no `deploy`
-- Resultado: _anotar deploy, summary, run_
+- `bundle deploy` (dev) → `[dev rarrudac] nfe_job`, tag do usuário, gatilho pausado; notebooks rodam da cópia
+  em `~/.bundle/<bundle>/dev/files` (não do Git folder). 2º deploy: só os 3 arquivos alterados (sync incremental)
+- `bundle run nfe_job` acompanhou a run no terminal (RUNNING → TERMINATED SUCCESS); `ctrl_lote` gravou os 7 lotes
+- `Output:` do `bundle run` = valor do `dbutils.notebook.exit()` de cada task (vazio aqui: não usamos exit)
+- Modo `production` sem service principal: exige `run_as` + `permissions` e `root_path` fora de pasta de usuário
+- CI: GitHub Actions com `databricks/setup-cli`, secrets `DATABRICKS_HOST`/`DATABRICKS_TOKEN`; validate em PR,
+  deploy prod manual
+- Resultado prod/CI: _anotar_
 
 ---
 

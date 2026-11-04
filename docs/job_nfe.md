@@ -61,12 +61,35 @@ O mesmo Job está em `resources/nfe_job.yml`; o projeto em `databricks.yml`. O p
 
 ```powershell
 winget install Databricks.DatabricksCLI          # uma vez
-databricks auth login                            # abre o navegador; informe a URL do workspace
+databricks auth login --host https://<workspace>.cloud.databricks.com   # perfil local (OAuth)
+$env:DATABRICKS_CONFIG_PROFILE = "free"          # perfil padrão da sessão
 cd D:\lambda4\nfe
-databricks bundle validate                       # checa YAML, caminhos e variáveis
-databricks bundle deploy                         # target dev: cria "[dev <usuário>] nfe_job", gatilho pausado
-databricks bundle run nfe_job                    # dispara uma execução
+databricks bundle validate                       # YAML, caminhos, variáveis (local)
+databricks bundle deploy                         # target dev: "[dev <usuário>] nfe_job", gatilho pausado
+databricks bundle summary                        # o que o bundle gerencia
+databricks bundle run nfe_job                    # dispara e acompanha no terminal
 ```
 
-Compare o Job criado pela UI com o do bundle: na página do Job, **⋮ → View as code / YAML**.
-Depois, apague o da UI e fique só com o do bundle (o Git vira a fonte da verdade).
+### Targets
+
+| | `dev` (padrão) | `prod` |
+|---|---|---|
+| Nome do Job | `[dev <usuário>] nfe_job` | `nfe_job` |
+| Gatilho | pausado | **UNPAUSED** (variável `pausa_gatilho`) |
+| Pasta implantada | `~/.bundle/<bundle>/dev` | `/Workspace/Shared/.bundle/<bundle>/prod` |
+| Exigências | nenhuma | `run_as` + `permissions` explícitos (sem service principal) |
+
+### Virada para uma fonte só
+
+```powershell
+databricks bundle deploy -t prod     # cria "nfe_job" gerenciado pelo bundle, gatilho ligado
+# UI: apagar o nfe_job criado à mão (⋮ → Delete job) depois de conferir o novo
+databricks bundle destroy -t dev     # remove a cópia [dev] (pede confirmação)
+```
+
+### CI no GitHub Actions (`.github/workflows/bundle.yml`)
+
+- **push/PR** → `bundle validate` em dev e prod: YAML quebrado aparece no PR
+- **Run workflow (manual)** → validate + `bundle deploy -t prod`
+- Secrets necessários: `DATABRICKS_HOST` (URL do workspace) e `DATABRICKS_TOKEN`
+  (User settings → Developer → Access tokens → Generate; validade curta, ex.: 90 dias)

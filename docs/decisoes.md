@@ -150,3 +150,15 @@ condições, retries, gatilhos e bundles.
   pipeline referenciado por `lookup`, não recriado
 **Consequência:** o projeto roda sozinho ao chegar um lote, e cada execução deixa rastro auditável.
 Próximo passo natural: o pipeline também como recurso do bundle (exige recriar, porque hoje pertence à UI).
+
+## D016 — CI/CD: bundle com targets dev/prod e GitHub Actions
+
+**Contexto:** marco 6b; seção 5 da prova (Git, bundles, variáveis por ambiente, CLI em CI/CD).
+**Decisão:**
+- `dev` (padrão): cópia por desenvolvedor, prefixada, gatilho pausado
+- `prod`: nome final, gatilho ligado; sem service principal (Free Edition), `run_as` e `permissions`
+  explícitos e implantação em `/Workspace/Shared/.bundle/...`
+- GitHub Actions: `validate` em todo push/PR; `deploy -t prod` só por execução manual (decisão humana)
+- Host e token em secrets do GitHub; nenhum identificador do workspace no repositório
+- Fonte única: o Job criado na UI é apagado depois do primeiro deploy em prod
+**Consequência:** toda mudança no Job passa pelo Git; o workspace roda a versão implantada, não a editada à mão.
