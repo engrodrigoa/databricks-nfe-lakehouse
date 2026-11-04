@@ -303,6 +303,9 @@ MARCO 7  consumo e governança ────────────────�
   `/Workspace/Shared` → aviso: pasta gravável por todos = qualquer um altera o código que roda com o `run_as`
 - **Estado do bundle mora na `root_path`**: trocar a pasta sem `bundle destroy` antes = recursos duplicados
   (o bundle "esquece" o que criou). Ordem certa: destroy → mudar → deploy
+- CI falhou com `cannot configure default credentials`: secret criado como `DATABRICKS`, workflow lia
+  `DATABRICKS_HOST`/`DATABRICKS_TOKEN`. Secret inexistente = string vazia, sem erro do GitHub
+- `mode: production` recomenda `root_path` **fixa** com o usuário/principal: uma única cópia de prod
 - Resultado prod/CI: _anotar_
 
 ---

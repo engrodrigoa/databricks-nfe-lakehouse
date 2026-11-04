@@ -23,9 +23,11 @@ targets:
     mode: production      # nomes sem prefixo, gatilhos valendo; valida identidade e permissões
     # Sem service principal (Free Edition, identidade pessoal), o modo production exige run_as e permissions
     # explícitos. Em empresa: run_as = service principal.
-    # root_path: o padrão (~/.bundle/<bundle>/prod) é restrito ao usuário. /Workspace/Shared foi testado e
-    # gera aviso: qualquer usuário poderia alterar o código que o Job executa com as permissões do run_as.
-    # Atenção: o estado do bundle mora na root_path; trocá-la sem `bundle destroy` antes duplica os recursos.
+    # root_path fixa e restrita ao usuário: garante UMA cópia de prod (recomendação da CLI) e impede que outros
+    # usuários alterem o código executado com as permissões do run_as (/Workspace/Shared foi testado: aviso).
+    # Mesmo caminho do padrão, então fixar não move o estado. Trocar a root_path exige `bundle destroy` antes.
+    workspace:
+      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
     run_as:
       user_name: ${workspace.current_user.userName}
     permissions:

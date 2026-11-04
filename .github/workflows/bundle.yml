@@ -4,6 +4,7 @@
 #   execução manual     ──► validate ──► deploy -t prod     publicar é uma decisão humana (workflow_dispatch)
 #
 # Secrets no GitHub (Settings → Secrets and variables → Actions): DATABRICKS_HOST e DATABRICKS_TOKEN.
+# Nome exato! Secret inexistente vira texto vazio e a CLI falha com "cannot configure default credentials".
 # O host do workspace fica no secret, nunca no código (repositório público).
 name: bundle
 
@@ -24,7 +25,7 @@ jobs:
       DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
       DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: databricks/setup-cli@main
       - name: databricks bundle validate (dev)
         run: databricks bundle validate -t dev
@@ -39,7 +40,7 @@ jobs:
       DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
       DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: databricks/setup-cli@main
       - name: databricks bundle deploy (prod)
         run: databricks bundle deploy -t prod
