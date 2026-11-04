@@ -108,16 +108,19 @@ q AS (SELECT lote, count(*) AS quarentena FROM workspace.nfe_silver.nfe_quarente
 d AS (SELECT lote, count(*) AS docs_validos, count(DISTINCT chave_acesso) AS notas_distintas
       FROM workspace.nfe_silver.nfe_doc GROUP BY lote),
 n AS (SELECT lote, count(*) AS notas_vigentes FROM workspace.nfe_silver.nfe_nota GROUP BY lote),
+-- FULL OUTER: lote declarado pela origem sem nenhum XML no Volume também aparece (perda total no transporte)
+lotes AS (
+  SELECT lote, coalesce(inv.arquivos_volume, 0) AS arquivos_volume, e.arquivos_esperados
+  FROM inv FULL OUTER JOIN esperado e USING (lote)),
 base AS (
-  SELECT inv.lote, inv.arquivos_volume, e.arquivos_esperados,
+  SELECT l.lote, l.arquivos_volume, l.arquivos_esperados,
          coalesce(b.arquivos_bronze, 0)                             AS arquivos_bronze,
-         inv.arquivos_volume - coalesce(b.arquivos_bronze, 0)       AS faltando_na_bronze,
+         l.arquivos_volume - coalesce(b.arquivos_bronze, 0)         AS faltando_na_bronze,
          coalesce(q.quarentena, 0)                                  AS quarentena,
          coalesce(d.docs_validos, 0)                                AS docs_validos,
          coalesce(d.docs_validos, 0) - coalesce(d.notas_distintas, 0) AS reenvios,
          coalesce(n.notas_vigentes, 0)                              AS notas_vigentes
-  FROM inv LEFT JOIN b USING (lote) LEFT JOIN q USING (lote) LEFT JOIN d USING (lote) LEFT JOIN n USING (lote)
-           LEFT JOIN esperado e USING (lote))
+  FROM lotes l LEFT JOIN b USING (lote) LEFT JOIN q USING (lote) LEFT JOIN d USING (lote) LEFT JOIN n USING (lote))
 SELECT '{run_id}', current_timestamp(), lote, arquivos_volume, arquivos_bronze, faltando_na_bronze,
        quarentena, docs_validos, reenvios, notas_vigentes,
        {int(arquivos_novos)}, {int(diferencas)},
