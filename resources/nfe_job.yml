@@ -49,6 +49,8 @@ resources:
           depends_on: [{ task_key: gold }, { task_key: pipeline }]
           notebook_task:
             notebook_path: ../src/06_jobs/j04_reconcilia.py
+            base_parameters:
+              corte_ms: "{{job.start_time.timestamp_ms}}"   # corte comum entre os ramos (D017)
 
         - task_key: ctrl_lote
           # Toda dependência de uma If/else exige outcome (true/false); a ctrl_lote precisa rodar nos dois casos,

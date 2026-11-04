@@ -310,9 +310,37 @@ MARCO 7  consumo e governança ────────────────�
   Quem implanta não importa; a `root_path` fixa garante que todos encontrem o mesmo estado
 - CI final: validate (dev + prod) verde em todo push; **Run workflow** manual → deploy prod pelo GitHub
 - Fonte única: o `nfe_job` do bundle (prod, gatilho ligado); Job da UI e cópia `[dev]` removidos
+- **Bundle corrige drift**: o Job de prod foi apagado pela UI (nome igual ao antigo); `bundle deploy -t prod`
+  percebeu a ausência e recriou. O YAML no Git é a verdade; o deploy faz o workspace voltar a ela
+- **Histórico de runs morre com o Job**: o recriado tem outro Job ID e *Recent runs* vazio. A `ctrl_lote`, tabela
+  independente, manteve todas as execuções desde o dia 1 → observabilidade não pode depender do orquestrador (D008)
+- CLI em terminal novo: erro de cache de credencial do perfil `DEFAULT` → `$env:DATABRICKS_CONFIG_PROFILE = "free"`
 
 ---
 
-## Marco 7
+## Marco 7 — observabilidade, qualidade e dashboard
 
-_A preencher conforme o projeto avança. Mesmo formato: conceitos · pegadinhas · notas._
+**Método (D018):** objetivo → três linhas planejadas juntas, etapa por etapa: **carga** (o que entra, sai, onde
+grava) · **observabilidade** (rodou e entregou tudo?) · **qualidade** (o dado é válido? qual a verdade de
+referência?). Mapa completo em [fluxo.md](fluxo.md).
+
+**Conceitos**
+- Observabilidade do pipeline: completude, frescor, volume, status, consistência. Falha = problema do processo
+- Qualidade do dado: validade, conformidade, integridade referencial, coerência. Falha = problema da origem
+- A quarentena serve às duas: a contagem fecha o balanço (nada sumiu), o motivo explica o erro
+- Status da run = status das **tasks folha**. Folha com `ALL_DONE` que termina bem → run *Succeeded* com código
+  `SuccessWithFailures`, mesmo com task intermediária falha
+- *File arrival* funciona por polling: reduz, mas não garante, disparo com lote incompleto. Quem garante que
+  nada se perde é o checkpoint do Auto Loader
+- Parâmetros dinâmicos de tempo: `{{job.start_time.timestamp_ms}}`, `{{job.start_time.iso_datetime}}`
+
+**Pegadinhas**
+- Comparar dois ramos paralelos sem corte comum = comparar fotos tiradas em horas diferentes (D017)
+- Olhar só a lista de runs: verde não quer dizer que a reconciliação passou. Abra o *Error code* ou consulte a `ctrl_lote`
+- Aumentar o *wait* do gatilho é paliativo: atrasa toda carga e continua sem garantia
+
+**Resultado na plataforma**
+- Teste de 300 notas com `--sujo` pela CLI: gatilho disparou durante o `fs cp -r` (07:40, 301 arquivos); nova run
+  às 07:47 leu o restante; `reconcilia` acusou bronze 5.101 × 5.161 e nfe_doc 5.076 × 5.136 (+60 arquivos lidos só
+  pelo pipeline); run marcada *Succeeded* / `SuccessWithFailures`. Correção: corte comum (D017)
+- _Após o patch: anotar a run seguinte com a reconciliação usando o corte_

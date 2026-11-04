@@ -18,7 +18,7 @@ Caminhos: os notebooks ficam em `src/06_jobs/` do Git folder.
 | 3 | `silver` | Notebook | `j02_silver` | tem_arquivo_novo (**true**) | Retries: 1 |
 | 4 | `gold` | Notebook | `j03_gold` | silver | — |
 | 5 | `pipeline` | **Pipeline** | `nfe_ldp` | — (raiz: roda em paralelo) | — |
-| 6 | `reconcilia` | Notebook | `j04_reconcilia` | gold, pipeline | — |
+| 6 | `reconcilia` | Notebook | `j04_reconcilia` | gold, pipeline | Parameter `corte_ms` = `{{job.start_time.timestamp_ms}}` (D017) |
 | 7 | `ctrl_lote` | Notebook | `j05_ctrl_lote` | bronze, silver, gold, pipeline, reconcilia | **Run if: All done** · Parameter `run_id` = `{{job.run_id}}` |
 
 > ⚠️ Testado: se a `ctrl_lote` depender só de `reconcilia`, ela é **excluída** junto com o ramo falso, mesmo com
@@ -86,6 +86,17 @@ databricks bundle deploy -t prod     # cria "nfe_job" gerenciado pelo bundle, ga
 # UI: apagar o nfe_job criado à mão (⋮ → Delete job) depois de conferir o novo
 databricks bundle destroy -t dev     # remove a cópia [dev] (pede confirmação)
 ```
+
+### Operação: upload, disparos e leitura do status
+
+- O *file arrival* funciona por polling e o `fs cp -r` sobe arquivo a arquivo: o Job pode disparar com o lote
+  pela metade. Não há perda (checkpoint), o restante entra na run seguinte, e a `reconcilia` compara só o que os
+  dois ramos leram antes do início da run (D017)
+- Para reduzir a janela: subir para `landing/staging/lote_NNN` (fora da pasta vigiada) e mover para `xml/` de uma
+  vez (`dbutils.fs.mv(origem, destino, recurse=True)`, cópia no servidor, segundos)
+- **Verde não é saudável**: o status da run vem das tasks folha. Como a `ctrl_lote` (ALL_DONE) é a única folha,
+  uma `reconcilia` falha aparece como *Succeeded* com *Error code* `SuccessWithFailures`. Quem diz se a carga
+  está saudável é a coluna `status` da `ctrl_lote`
 
 ### CI no GitHub Actions (`.github/workflows/bundle.yml`)
 

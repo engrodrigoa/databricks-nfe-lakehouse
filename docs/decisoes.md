@@ -163,3 +163,26 @@ Próximo passo natural: o pipeline também como recurso do bundle (exige recriar
 - Host e token em secrets do GitHub; nenhum identificador do workspace no repositório
 - Fonte única: o Job criado na UI é apagado depois do primeiro deploy em prod
 **Consequência:** toda mudança no Job passa pelo Git; o workspace roda a versão implantada, não a editada à mão.
+
+## D017 — Reconciliação com corte comum entre os ramos
+
+**Contexto:** mesmo com *wait after last change* (120 s), o upload pela CLI (arquivo a arquivo) fez o gatilho
+disparar com o lote incompleto. Os dois ramos leram o Volume em momentos diferentes (bronze 5.101 × pipeline
+5.161) e a `reconcilia` acusou divergência que não era erro de processamento.
+**Decisão:** a `reconcilia` recebe `{{job.start_time.timestamp_ms}}` e compara só o que os dois ramos com certeza
+leram: camadas por arquivo com `modificado_em <= corte`; camadas por nota só com chaves cujo último arquivo
+(reenvio incluído) chegou antes do corte. O agregado mensal, sem chave, é conferido pela soma de CBS na fato.
+**Consequência:** divergência passa a significar processamento diferente do mesmo conjunto de arquivos.
+Arquivos atrasados entram na run seguinte sem alarme falso. O gatilho continua sem garantir lote completo;
+quem garante que nada se perde é o checkpoint, não o gatilho.
+
+## D018 — Três linhas de planejamento e painel sobre tabelas de controle
+
+**Contexto:** marco 7. O mapa de ponta a ponta ([fluxo.md](fluxo.md)) mostrou a qualidade fora do Job e o
+status da run escondendo falhas (`SuccessWithFailures`: a folha `ctrl_lote`, com ALL_DONE, termina bem).
+**Decisão:**
+- Todo pipeline é planejado em três linhas, etapa por etapa: carga, observabilidade, qualidade
+- O painel lê `ctrl_lote` e `ctrl_dq`, nunca o histórico de runs do orquestrador
+- Nova task `dq` grava `ctrl_dq` (run × lote × regra) para dar tendência à qualidade
+- Alerta sobre o status da `ctrl_lote`, não sobre o status do Job
+**Consequência:** observabilidade e qualidade sobrevivem à troca ou recriação do Job e ficam consultáveis em SQL.
