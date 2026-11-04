@@ -364,3 +364,22 @@ referência?). Mapa completo em [fluxo.md](fluxo.md).
   `_lote.json` começa com `_` = **arquivo oculto para o Spark** (como `_SUCCESS`, `_delta_log`), a leitura não achou
   nada e o `except` de "sem controle ainda" engoliu o defeito. Renomeado para `controle_lote.json` e fallback visível
   (task value `controles_lidos`). Pegadinha de prova: arquivos iniciados por `_` ou `.` são ignorados na leitura
+- Lote declarado sem nenhum XML não aparecia (inventário partia só dos XML) → `FULL OUTER JOIN` com o controle.
+  **Teste negativo** do `lote_014`: só o controle chegou → `20 / 0 / INCOMPLETO` com o Job *Succeeded* (D018 na
+  prática); reentrega com `--overwrite` → `20 / 20 / OK`. A `ctrl_lote` conta a história em duas linhas
+- Timeline da run completa (7m01): duração = **caminho crítico** (bronze → silver → gold → dq → ctrl_lote), o
+  pipeline (2m33) roda em paralelo e não pesa. A `ctrl_lote` (1m51, inventário `binaryFile` de ~7 mil arquivos)
+  virou a task mais lenta: alvo de otimização no 7f
+- Processo: patch corrigido vai com **nome novo**. Reenviar com o mesmo nome → o navegador salva `(1)` e a versão
+  errada é aplicada (aconteceu com o m7-05; corrigido com um patch incremental)
+
+**7c · Dashboard "Saúde da Carga" (publicado)**
+- Counter mostra **um** valor: com várias linhas, agrega o dataset inteiro. Três erros de uma vez: status de
+  todas as runs, duração de uma run antiga (`LAST` = última linha numa ordem **não garantida**) e notas vigentes
+  **somadas entre runs** (84,6 mil × 6.342)
+- `notas_vigentes` é medida **semi-aditiva** (foto de estoque, como saldo): soma dentro da run, nunca entre runs.
+  Equivalente ao `LASTNONBLANK` / saldo de fechamento do Power BI
+- O editor não tem filtro de "último valor" (só intervalos relativos a agora, que ficariam vazios sem carga
+  recente). Regra: **lógica no dataset, widget só exibe** → `ds_ultima_carga` com `ORDER BY ... LIMIT 1`
+- Timestamps chegam em UTC: converter no dataset (`from_utc_timestamp(x, 'America/Sao_Paulo')`)
+- Counter de frescor depende do refresh do painel ("42m ago"): publicar com **Schedule** de atualização

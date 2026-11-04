@@ -145,7 +145,7 @@ com o que chegou ao Volume.
 | 4 | Gold: dimensões (TABLE), fatos e agregado (MATERIALIZED VIEW), consumo (VIEW) | ✔ |
 | 5 | Lakeflow Declarative Pipeline em schemas paralelos: expectations, AUTO CDC SCD1/SCD2, MVs (= notebooks, diferença 0) | ✔ |
 | 6 | Lakeflow Job (file arrival, notebooks ∥ pipeline, condição, reconciliação, ctrl_lote) como Asset Bundle dev/prod + CI no GitHub Actions | ✔ |
-| 7 | Mapa das três linhas · reconciliação com corte comum · task de qualidade (`ctrl_dq`) · dashboard AI/BI (saúde, qualidade, negócio) como recurso do bundle · carga até 50k notas | em andamento |
+| 7 | Mapa das três linhas ✔ · reconciliação com corte comum ✔ · task de qualidade `ctrl_dq` ✔ · fronteiras vigiadas (arquivo de controle, `nfe_doc → nfe_nota`, reenvio entre cargas) ✔ · painel "Saúde da Carga" ✔ · páginas Qualidade e Negócio · painel como recurso do bundle · carga até 50k notas | em andamento |
 
 Detalhes: [fluxo](docs/fluxo.md) · [Job](docs/job_nfe.md) · [dashboard](docs/dashboard.md) ·
 [contrato de dados](docs/contrato_dados.md) · [decisões](docs/decisoes.md) · [guia de estudos](docs/guia_estudos.md)

@@ -66,10 +66,28 @@ esconde falhas de tasks intermediárias (`SuccessWithFailures`). As tabelas `ctr
 ```
 
 ```sql
+-- ds_ultima_carga: fonte dos counters (uma linha = a última run). Counter agrega o dataset inteiro:
+-- com várias linhas, somaria notas_vigentes entre runs (medida semi-aditiva) e pegaria status/duração errados
+WITH c AS (
+  SELECT run_id,
+         from_utc_timestamp(max(inicio_run), 'America/Sao_Paulo')    AS inicio_carga,
+         from_utc_timestamp(min(executado_em), 'America/Sao_Paulo')  AS fim_carga,
+         timestampdiff(SECOND, max(inicio_run), min(executado_em))   AS duracao_s,
+         sum(notas_vigentes)                                         AS notas_vigentes,
+         count_if(status NOT IN ('OK', 'SEM_ARQUIVO_NOVO'))          AS lotes_com_problema,
+         CASE WHEN count_if(status = 'FALHA_OU_PULADO') > 0  THEN 'FALHA_OU_PULADO'
+              WHEN count_if(status = 'DIVERGENTE') > 0       THEN 'DIVERGENTE'
+              WHEN count_if(status = 'INCOMPLETO') > 0       THEN 'INCOMPLETO'
+              WHEN count_if(status = 'SEM_ARQUIVO_NOVO') > 0 THEN 'SEM_ARQUIVO_NOVO'
+              ELSE 'OK' END                                          AS status
+  FROM workspace.nfe_bronze.ctrl_lote
+  GROUP BY run_id)
+SELECT * FROM c ORDER BY fim_carga DESC LIMIT 1;
+
 -- ds_cargas: uma linha por execução do Job (o pior status entre os lotes vence)
 SELECT run_id,
-       coalesce(max(inicio_run), min(executado_em))          AS inicio_carga,
-       min(executado_em)                                     AS fim_carga,
+       from_utc_timestamp(coalesce(max(inicio_run), min(executado_em)), 'America/Sao_Paulo') AS inicio_carga,
+       from_utc_timestamp(min(executado_em), 'America/Sao_Paulo')                            AS fim_carga,
        timestampdiff(SECOND, max(inicio_run), min(executado_em)) AS duracao_s,
        max(arquivos_novos_execucao)                          AS arquivos_novos,
        max(diferencas_nb_x_ldp)                              AS diferencas,
@@ -160,7 +178,7 @@ Medidas não aditivas (`pct_carga_efetiva`, notas distintas) são recalculadas n
 
 ```
 7b  ✔ patch: j06_dq + ctrl_dq + inicio_run ──► bundle deploy -t prod ──► 1 lote de teste
-7c  UI: datasets + página 1 (aprender o editor AI/BI)
+7c  ✔ UI: datasets + página 1 publicada como "Saúde da Carga" (counters via ds_ultima_carga)
 7d  UI: páginas 2 e 3, filtros, publicação
 7e  bundle: dashboard vira recurso (databricks bundle generate dashboard) → versionado com o Job
 7f  carga contínua até 50k notas: o painel mostra o comportamento sob volume
