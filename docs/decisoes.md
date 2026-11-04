@@ -157,7 +157,8 @@ Próximo passo natural: o pipeline também como recurso do bundle (exige recriar
 **Decisão:**
 - `dev` (padrão): cópia por desenvolvedor, prefixada, gatilho pausado
 - `prod`: nome final, gatilho ligado; sem service principal (Free Edition), `run_as` e `permissions`
-  explícitos e implantação em `/Workspace/Shared/.bundle/...`
+  explícitos; implantação na pasta padrão do usuário (`/Workspace/Shared` testado: aviso de pasta gravável
+  por todos, ou seja, qualquer usuário alteraria o código executado com as permissões do `run_as`)
 - GitHub Actions: `validate` em todo push/PR; `deploy -t prod` só por execução manual (decisão humana)
 - Host e token em secrets do GitHub; nenhum identificador do workspace no repositório
 - Fonte única: o Job criado na UI é apagado depois do primeiro deploy em prod

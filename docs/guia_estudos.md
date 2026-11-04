@@ -299,6 +299,10 @@ MARCO 7  consumo e governança ────────────────�
 - Modo `production` sem service principal: exige `run_as` + `permissions` e `root_path` fora de pasta de usuário
 - CI: GitHub Actions com `databricks/setup-cli`, secrets `DATABRICKS_HOST`/`DATABRICKS_TOKEN`; validate em PR,
   deploy prod manual
+- `deploy -t prod` com identidade pessoal **não bloqueia** (exige `run_as` + `permissions`); com `root_path` em
+  `/Workspace/Shared` → aviso: pasta gravável por todos = qualquer um altera o código que roda com o `run_as`
+- **Estado do bundle mora na `root_path`**: trocar a pasta sem `bundle destroy` antes = recursos duplicados
+  (o bundle "esquece" o que criou). Ordem certa: destroy → mudar → deploy
 - Resultado prod/CI: _anotar_
 
 ---

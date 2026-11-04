@@ -76,8 +76,8 @@ databricks bundle run nfe_job                    # dispara e acompanha no termin
 |---|---|---|
 | Nome do Job | `[dev <usuário>] nfe_job` | `nfe_job` |
 | Gatilho | pausado | **UNPAUSED** (variável `pausa_gatilho`) |
-| Pasta implantada | `~/.bundle/<bundle>/dev` | `/Workspace/Shared/.bundle/<bundle>/prod` |
-| Exigências | nenhuma | `run_as` + `permissions` explícitos (sem service principal) |
+| Pasta implantada | `~/.bundle/<bundle>/dev` | `~/.bundle/<bundle>/prod` (restrita ao usuário) |
+| Exigências | nenhuma | `run_as` + `permissions` explícitos (sem service principal); pasta não compartilhada |
 
 ### Virada para uma fonte só
 
