@@ -51,9 +51,10 @@ resources:
             notebook_path: ../src/06_jobs/j04_reconcilia.py
 
         - task_key: ctrl_lote
+          # Toda dependência de uma If/else exige outcome (true/false); a ctrl_lote precisa rodar nos dois casos,
+          # então NÃO depende da condição. bronze e pipeline sempre executam: garantem o ALL_DONE (testado no 6a)
           depends_on:
             - { task_key: bronze }
-            - { task_key: tem_arquivo_novo }
             - { task_key: silver }
             - { task_key: gold }
             - { task_key: pipeline }

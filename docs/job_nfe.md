@@ -19,10 +19,12 @@ Caminhos: os notebooks ficam em `src/06_jobs/` do Git folder.
 | 4 | `gold` | Notebook | `j03_gold` | silver | — |
 | 5 | `pipeline` | **Pipeline** | `nfe_ldp` | — (raiz: roda em paralelo) | — |
 | 6 | `reconcilia` | Notebook | `j04_reconcilia` | gold, pipeline | — |
-| 7 | `ctrl_lote` | Notebook | `j05_ctrl_lote` | **todas** as anteriores | **Run if: All done** · Parameter `run_id` = `{{job.run_id}}` |
+| 7 | `ctrl_lote` | Notebook | `j05_ctrl_lote` | bronze, silver, gold, pipeline, reconcilia | **Run if: All done** · Parameter `run_id` = `{{job.run_id}}` |
 
 > ⚠️ Testado: se a `ctrl_lote` depender só de `reconcilia`, ela é **excluída** junto com o ramo falso, mesmo com
 > *All done*. Ela precisa de pelo menos uma dependência que sempre executa (bronze, pipeline).
+> Não coloque a condição `tem_arquivo_novo` como dependência: a API exige `outcome` (true/false) em toda
+> dependência de If/else, e a `ctrl_lote` precisa rodar nos dois casos (erro visto no `bundle deploy`).
 
 **Job details (painel direito):**
 - **Max concurrent runs: 1**: duas execuções simultâneas brigariam pelos mesmos checkpoints

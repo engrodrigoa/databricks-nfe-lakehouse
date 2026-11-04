@@ -280,7 +280,19 @@ MARCO 7  consumo e governança ────────────────�
 - *Lineage* do Job: 18 tabelas upstream, 14 downstream, capturadas pelo UC sem documentação manual
 - *Insights* (Performance Observability) nas tasks pesadas: assunto da seção 6 (troubleshooting)
 
-**Pendente (6b):** o mesmo Job por bundle + CLI
+- **Condição de corrida entre ramos paralelos** (lote_007 subido pela CLI, gatilho ainda sem *wait*): o bronze
+  dos notebooks leu o lote incompleto, o pipeline leu depois e completo → `reconcilia` 3.531 ≠ 3.584 → Job
+  FAILED, `ctrl_lote` = DIVERGENTE. O **retry** da reconcilia falhou de novo (repetir não muda o que cada ramo
+  leu). A run seguinte, na **fila**, leu só os 53 atrasados (checkpoint) e reconciliou. Em produção: um único
+  ponto de ingestão (os ramos leem a mesma bronze) + gatilho com *wait after last change*
+
+**6b · CLI e bundle**
+- CLI = wrapper da API REST; autenticação OAuth em perfil local (`databricks auth login`, `.databrickscfg`)
+- `databricks fs cp -r` sobe um lote de 504 arquivos num comando (e dispara o *file arrival*)
+- `databricks jobs get <id> -o json`: conferir configuração real (ex.: `wait_after_last_change_seconds`)
+- **`bundle validate` ≠ garantia de deploy**: valida YAML/caminhos localmente; regras de negócio só na API.
+  Ex.: dependência de If/else sem `outcome` → `400 INVALID_PARAMETER_VALUE` no `deploy`
+- Resultado: _anotar deploy, summary, run_
 
 ---
 
