@@ -76,7 +76,7 @@ python gerador\gen_nfe.py --inbox data\inbox\lote_002 --n 500 --sujo --manifesto
 | 3 | Silver: nfe_doc → nota, item, pagamento, duplicata (MERGE); quarentena; alertas; gabarito 31/31 | ✔ |
 | 4 | Gold: dimensões (TABLE), fatos e agregado (MATERIALIZED VIEW), consumo (VIEW) | ✔ |
 | 5 | Lakeflow Declarative Pipeline em schemas paralelos: expectations, AUTO CDC SCD1/SCD2, MVs (= notebooks, diferença 0) | ✔ |
-| 6 | Lakeflow Job (file arrival, notebooks ∥ pipeline, condição, reconciliação, ctrl_lote) + Asset Bundle | em andamento |
+| 6 | Lakeflow Job (file arrival, notebooks ∥ pipeline, condição, reconciliação, ctrl_lote) como Asset Bundle dev/prod + CI no GitHub Actions | ✔ |
 | 7 | Dashboard AI/BI e carga contínua até 50k notas | |
 
 Detalhes: [Job](docs/job_nfe.md) · [contrato de dados](docs/contrato_dados.md) · [decisões](docs/decisoes.md) · [guia de estudos](docs/guia_estudos.md)

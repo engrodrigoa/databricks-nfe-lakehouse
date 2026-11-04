@@ -25,7 +25,7 @@ MARCO 5  Lakeflow Declarative Pipelines ─────────────�
   1 pipeline: STREAMING TABLE (bronze) → expectations + quarentena → AUTO CDC SCD1 (entidades)
               → AUTO CDC SCD2 (participante) → MV gold com point-in-time. Schemas nfe_ldp_* (D014)
                                                                     │
-MARCO 6  operação ────────────────────────────────────────────────────────────────── ◐
+MARCO 6  operação ────────────────────────────────────────────────────────────────── ✔
   Job nfe_job: file arrival ─► [bronze ─► condição ─► silver ─► gold] ∥ [pipeline] ─► reconcilia ─► ctrl_lote
   + o mesmo Job em YAML (bundle) implantado pela CLI (D015)
                                                                     │
@@ -306,7 +306,10 @@ MARCO 7  consumo e governança ────────────────�
 - CI falhou com `cannot configure default credentials`: secret criado como `DATABRICKS`, workflow lia
   `DATABRICKS_HOST`/`DATABRICKS_TOKEN`. Secret inexistente = string vazia, sem erro do GitHub
 - `mode: production` recomenda `root_path` **fixa** com o usuário/principal: uma única cópia de prod
-- Resultado prod/CI: _anotar_
+- **Estado do bundle mora no workspace**: deploy pelo PC e pelo GitHub Actions → `0 created, 2 unchanged` nos dois.
+  Quem implanta não importa; a `root_path` fixa garante que todos encontrem o mesmo estado
+- CI final: validate (dev + prod) verde em todo push; **Run workflow** manual → deploy prod pelo GitHub
+- Fonte única: o `nfe_job` do bundle (prod, gatilho ligado); Job da UI e cópia `[dev]` removidos
 
 ---
 
