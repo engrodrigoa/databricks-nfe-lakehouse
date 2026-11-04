@@ -636,7 +636,7 @@ def main():
         raise SystemExit(f"{a.inbox} já tem {len(existentes)} XML. Use outro nome de lote (cada lote é uma entrega única).")
     if a.manifesto and a.manifesto.exists():
         raise SystemExit(f"{a.manifesto} já existe. Um manifesto por lote; escolha outro nome.")
-    if a.seed is None:                      # registrada no _lote.json: o lote pode ser reproduzido
+    if a.seed is None:                      # registrada no controle_lote.json: o lote pode ser reproduzido
         a.seed = random.SystemRandom().randrange(1, 10**9)
     print(f"seed das notas: {a.seed}  (mesma seed + mesmo período = mesmas chaves = reenvio em massa)")
 
@@ -702,8 +702,8 @@ def main():
     # e acusa INCOMPLETO se o upload parar no meio. Escrito por último: só existe se a geração terminou.
     controle = {"lote": a.inbox.name, "arquivos": escritos, "notas": a.n * a.lotes, "seed": a.seed,
                 "gerado_em": datetime.now().replace(microsecond=0).isoformat()}
-    escrever_atomico(a.inbox / "_lote.json", json.dumps(controle, ensure_ascii=False))
-    print(f"controle: {a.inbox / '_lote.json'} ({escritos} arquivos)")
+    escrever_atomico(a.inbox / "controle_lote.json", json.dumps(controle, ensure_ascii=False))
+    print(f"controle: {a.inbox / 'controle_lote.json'} ({escritos} arquivos)")
 
 
 

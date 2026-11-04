@@ -359,3 +359,8 @@ referência?). Mapa completo em [fluxo.md](fluxo.md).
   certo; o gabarito filtrava pelo lote da nota (errado: o lote da nota é o do arquivo vencedor)
 - Lições (D019): lote não serve de unidade para a silver; toda fronteira precisa de controle (origem → Volume,
   nfe_doc → nfe_nota); reenvio entre cargas é sinal operacional da origem; a origem deve falhar cedo
+- Patch das fronteiras: job com 8 tasks verde (6m09); `chaves_sem_nota` = 0; `reenvio_entre_cargas` carga 0 (seed
+  nova) e total 3.073; `lote_009` fechou 1617 após o `--overwrite`. **Mas** `arquivos_esperados` nulo nos lotes novos:
+  `_lote.json` começa com `_` = **arquivo oculto para o Spark** (como `_SUCCESS`, `_delta_log`), a leitura não achou
+  nada e o `except` de "sem controle ainda" engoliu o defeito. Renomeado para `controle_lote.json` e fallback visível
+  (task value `controles_lidos`). Pegadinha de prova: arquivos iniciados por `_` ou `.` são ignorados na leitura

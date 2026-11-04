@@ -195,8 +195,8 @@ status da run escondendo falhas (`SuccessWithFailures`: a folha `ctrl_lote`, com
 contrato (reenvio: vale o último), mas três fronteiras estavam sem vigilância: a cópia para o Volume parou no
 meio (38 arquivos), o balanço não conferia `nfe_doc → nfe_nota`, e 1.500 reenvios entre lotes passaram como OK.
 **Decisão:**
-- Origem: o gerador recusa pasta de lote com XML e manifesto existente; grava `_lote.json` (arquivos, notas, seed)
-- `ctrl_lote.arquivos_esperados` (do `_lote.json`) × `arquivos_volume`: menor → `INCOMPLETO`, mesmo em run sem
+- Origem: o gerador recusa pasta de lote com XML e manifesto existente; grava `controle_lote.json` (arquivos, notas, seed)
+- `ctrl_lote.arquivos_esperados` (do `controle_lote.json`) × `arquivos_volume`: menor → `INCOMPLETO`, mesmo em run sem
   arquivo novo
 - `ctrl_lote.chaves_sem_nota`: conferência **global** por chave (a nota pertence ao lote do reenvio vencedor,
   então por lote daria alarme falso)
@@ -204,3 +204,6 @@ meio (38 arquivos), o balanço não conferia `nfe_doc → nfe_nota`, e 1.500 ree
 - Gabarito sempre por chave/arquivo, nunca pelo `lote` da `nfe_nota`
 **Consequência:** cada fronteira do fluxo tem um controle; erro operacional na origem aparece no primeiro número
 do painel, não três camadas depois.
+**Correção:** a 1ª versão chamava `_lote.json`. O Spark ignora arquivos que começam com `_` ou `.` (ocultos, como
+`_SUCCESS`), a leitura caiu no fallback "sem controle" em silêncio e `arquivos_esperados` ficou nulo. Renomeado
+para `controle_lote.json`; a quantidade de controles lidos passa a ser impressa e vira task value.

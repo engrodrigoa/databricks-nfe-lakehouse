@@ -98,7 +98,7 @@ Ler sempre com schema explícito em string (códigos com zero à esquerda).
 | `p.cStat = 100` (autorizada) | erro | quarentena |
 | Reenvio da mesma chave no mesmo lote | info | dedup, vale o mais recente |
 | Reenvio da mesma chave em outra entrega (`reenvio_entre_cargas`) | aviso | dedup + registra na `ctrl_dq` (D019) |
-| Arquivos no Volume < `_lote.json` da origem | erro de processo | `ctrl_lote` = INCOMPLETO (D019) |
+| Arquivos no Volume < `controle_lote.json` da origem | erro de processo | `ctrl_lote` = INCOMPLETO (D019) |
 | Total CBS ≠ Σ `v_cbs` dos itens | aviso | mantém + registra |
 | `v_bc_ibscbs` total ≠ Σ itens | aviso | mantém + registra |
 | `cclasstrib` incompatível com `cst_ibscbs` (`ref_classtrib`) | aviso | mantém + registra |

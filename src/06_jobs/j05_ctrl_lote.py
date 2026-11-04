@@ -7,7 +7,7 @@
 # MAGIC Task values de tasks que não rodaram (falha ou condição falsa) voltam como `default` (-1).
 # MAGIC
 # MAGIC Marco 7: recebe `inicio_ms` (`{{job.start_time.timestamp_ms}}`) e grava `inicio_run`: duração = `executado_em − inicio_run`.
-# MAGIC Fronteiras vigiadas (D019): origem → Volume (`_lote.json` × inventário) e nfe_doc → nfe_nota (`chaves_sem_nota`, global).
+# MAGIC Fronteiras vigiadas (D019): origem → Volume (`controle_lote.json` × inventário) e nfe_doc → nfe_nota (`chaves_sem_nota`, global).
 
 # COMMAND ----------
 
@@ -45,7 +45,7 @@ COMMENT 'Log de carga por lote e por execução do Job (D008)'
 # Colunas acrescentadas no marco 7. Tabela já existe com dados: entram por ALTER (linhas antigas ficam NULL)
 NOVAS = {
     "inicio_run":         "TIMESTAMP COMMENT 'início da run ({{job.start_time}}): duração = executado_em - inicio_run'",
-    "arquivos_esperados": "BIGINT COMMENT 'declarado pela origem no _lote.json (NULL = lote sem arquivo de controle)'",
+    "arquivos_esperados": "BIGINT COMMENT 'declarado pela origem no controle_lote.json (NULL = lote sem arquivo de controle)'",
     "chaves_sem_nota":    "BIGINT COMMENT 'global: chaves válidas no nfe_doc que não chegaram à nfe_nota'",
 }
 existentes = spark.table("workspace.nfe_bronze.ctrl_lote").columns
@@ -57,8 +57,12 @@ for coluna, tipo in NOVAS.items():
 
 # MAGIC %md
 # MAGIC ## Arquivo de controle (D019)
-# MAGIC A origem grava `_lote.json` com a quantidade de arquivos enviados. Lotes antigos não têm: ficam sem a
-# MAGIC conferência (NULL), sem alarme. Só a ausência de **qualquer** `_lote.json` é tratada; outro erro de leitura sobe.
+# MAGIC A origem grava `controle_lote.json` com a quantidade de arquivos enviados. Lotes antigos não têm: ficam sem a
+# MAGIC conferência (NULL), sem alarme. Só a ausência de **qualquer** `controle_lote.json` é tratada; outro erro de leitura sobe.
+# MAGIC
+# MAGIC ⚠️ O nome **não** pode começar com `_` ou `.`: o Spark trata esses arquivos como ocultos (`_SUCCESS`, `_delta_log`)
+# MAGIC e não os lê. A 1ª versão (`_lote.json`) caiu no fallback em silêncio: por isso a contagem lida é impressa e
+# MAGIC vira task value (`controles_lidos`).
 
 # COMMAND ----------
 
@@ -66,16 +70,20 @@ from pyspark.errors import AnalysisException
 from pyspark.sql import functions as F
 
 try:
-    (spark.read.json("/Volumes/workspace/nfe_bronze/landing/xml/*/_lote.json")
+    (spark.read.json("/Volumes/workspace/nfe_bronze/landing/xml/*/controle_lote.json")
      .select(F.regexp_extract(F.col("_metadata.file_path"), r"/(lote_[^/]+)/", 1).alias("lote"),
              F.col("arquivos").cast("bigint").alias("arquivos_esperados"))
      .createOrReplaceTempView("esperado"))
+    controles_lidos = spark.table("esperado").count()
 except AnalysisException as e:
     if "PATH_NOT_FOUND" not in str(e) and "UNABLE_TO_INFER_SCHEMA" not in str(e):
         raise
-    print("nenhum _lote.json no Volume ainda")
+    print("nenhum controle_lote.json no Volume ainda")
     spark.sql("CREATE OR REPLACE TEMP VIEW esperado AS "
               "SELECT CAST(NULL AS STRING) AS lote, CAST(NULL AS BIGINT) AS arquivos_esperados WHERE false")
+    controles_lidos = 0
+print("arquivos de controle lidos:", controles_lidos)
+dbutils.jobs.taskValues.set(key="controles_lidos", value=controles_lidos)
 
 # global: a nota pode pertencer ao lote de um reenvio posterior, então a conferência nfe_doc → nfe_nota é por chave
 chaves_sem_nota = spark.sql("""
