@@ -184,5 +184,6 @@ status da run escondendo falhas (`SuccessWithFailures`: a folha `ctrl_lote`, com
 - Todo pipeline é planejado em três linhas, etapa por etapa: carga, observabilidade, qualidade
 - O painel lê `ctrl_lote` e `ctrl_dq`, nunca o histórico de runs do orquestrador
 - Nova task `dq` grava `ctrl_dq` (run × lote × regra) para dar tendência à qualidade
-- Alerta sobre o status da `ctrl_lote`, não sobre o status do Job
+- O status da `ctrl_lote` abre o painel (leitor = operador; sem alerta por e-mail), nunca o status do Job
+- Eixo temporal do painel = carga (data/hora), não lote: em produção só existem arquivos chegando
 **Consequência:** observabilidade e qualidade sobrevivem à troca ou recriação do Job e ficam consultáveis em SQL.

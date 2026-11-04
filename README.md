@@ -18,7 +18,7 @@ Cada etapa do medallion foi planejada respondendo três perguntas ao mesmo tempo
 |---|---|---|
 | **Carga** | o que entra, o que sai, onde grava? | bronze → silver → gold |
 | **Observabilidade** | a carga rodou, chegou ao fim e não perdeu nada? | `ctrl_lote` (1 linha por lote × execução) |
-| **Qualidade** | o conteúdo é válido e coerente? qual a verdade de referência? | `nfe_quarentena` · `vw_dq_alertas` · gabarito |
+| **Qualidade** | o conteúdo é válido e coerente? qual a verdade de referência? | `ctrl_dq` (1 linha por regra × execução) · quarentena · gabarito |
 
 Mapa completo, com cada controle posicionado na etapa que vigia: **[docs/fluxo.md](docs/fluxo.md)**.
 
@@ -53,9 +53,9 @@ YAML como **Databricks Asset Bundle** (marco 6b). Um comando recria tudo: tasks,
 gatilho, retries, parâmetros e permissões.
 
 ```
-               ┌► bronze ─► arquivos_novos > 0 ? ──true──► silver ─► gold ─┐
- file arrival ─┤                                                            ├─► reconcilia ─► ctrl_lote
-               └► pipeline nfe_ldp ─────────────────────────────────────────┘                (ALL_DONE)
+               ┌► bronze ─► arquivos_novos > 0 ? ──true──► silver ─► gold ─┬─► dq ──────────┐
+ file arrival ─┤                                                            ├─► reconcilia ──┴─► ctrl_lote
+               └► pipeline nfe_ldp ─────────────────────────────────────────┘                   (ALL_DONE)
 ```
 
 ```powershell
@@ -82,9 +82,9 @@ vira tasks, e as tasks viram código revisável em PR. Detalhes: [docs/job_nfe.m
 | Completude Volume × bronze, balanço bronze = quarentena + válidos | observabilidade | `ctrl_lote`, toda execução |
 | Reconciliação notebooks × pipeline com corte comum, falha de propósito | observabilidade | `j04_reconcilia`, toda execução |
 | Quarentena por motivo + constraints Delta | qualidade (erro, bloqueia) | silver, toda execução |
-| Alertas fiscais: totais × soma dos itens, CST × cClassTrib, códigos fora da referência | qualidade (aviso) | `vw_dq_alertas` |
+| Alertas fiscais: totais × soma dos itens, CST × cClassTrib, códigos fora da referência | qualidade (aviso) | `j06_dq` → `ctrl_dq`, toda execução |
 | Gabarito: anomalias injetadas pelo gerador × detectadas (31/31) | teste dos testes | `03c` |
-| Chaves órfãs na gold (o Delta não força FK) | integridade | `04c` |
+| Chaves órfãs na gold (o Delta não força FK) | integridade | `j06_dq` → `ctrl_dq`, toda execução |
 
 Lição registrada: **Job verde não é carga saudável**. O status da run vem das tasks folha; com a `ctrl_lote`
 (ALL_DONE) como folha, uma reconciliação falha aparece como *Succeeded*. Por isso painel e alerta leem a

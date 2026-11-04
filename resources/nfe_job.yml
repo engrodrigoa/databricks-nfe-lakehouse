@@ -1,7 +1,7 @@
 # Job "nfe_job" (marco 6, desenho c, D015)
 #
-#                ┌► bronze ─► tem_arquivo_novo? ──true──► silver ─► gold ─┐
-#  file arrival ─┤                                                         ├─► reconcilia ─► ctrl_lote (ALL_DONE)
+#                ┌► bronze ─► tem_arquivo_novo? ──true──► silver ─► gold ─┬─► dq ──────────┐
+#  file arrival ─┤                                                         ├─► reconcilia ──┴─► ctrl_lote (ALL_DONE)
 #                └► pipeline nfe_ldp ──────────────────────────────────────┘
 resources:
   jobs:
@@ -52,6 +52,15 @@ resources:
             base_parameters:
               corte_ms: "{{job.start_time.timestamp_ms}}"   # corte comum entre os ramos (D017)
 
+        - task_key: dq
+          # qualidade do dado (D018): não falha por achar problema no dado, só por erro de código
+          depends_on: [{ task_key: gold }]
+          notebook_task:
+            notebook_path: ../src/06_jobs/j06_dq.py
+            base_parameters:
+              run_id: "{{job.run_id}}"
+              inicio_ms: "{{job.start_time.timestamp_ms}}"
+
         - task_key: ctrl_lote
           # Toda dependência de uma If/else exige outcome (true/false); a ctrl_lote precisa rodar nos dois casos,
           # então NÃO depende da condição. bronze e pipeline sempre executam: garantem o ALL_DONE (testado no 6a)
@@ -61,8 +70,10 @@ resources:
             - { task_key: gold }
             - { task_key: pipeline }
             - { task_key: reconcilia }
+            - { task_key: dq }
           run_if: ALL_DONE
           notebook_task:
             notebook_path: ../src/06_jobs/j05_ctrl_lote.py
             base_parameters:
               run_id: "{{job.run_id}}"
+              inicio_ms: "{{job.start_time.timestamp_ms}}"

@@ -1,9 +1,9 @@
 # Job `nfe_job`: criar pela UI (marco 6a) e depois por código (marco 6b)
 
 ```
-               ┌► bronze ─► tem_arquivo_novo? ──true──► silver ─► gold ─┐
- file arrival ─┤                                                         ├─► reconcilia ─► ctrl_lote
-               └► pipeline nfe_ldp ──────────────────────────────────────┘     (ALL_DONE)
+               ┌► bronze ─► tem_arquivo_novo? ──true──► silver ─► gold ─┬─► dq ──────────┐
+ file arrival ─┤                                                         ├─► reconcilia ──┴─► ctrl_lote
+               └► pipeline nfe_ldp ──────────────────────────────────────┘                   (ALL_DONE)
 ```
 
 ## 6a · Pela UI (aprender a tela)
@@ -19,7 +19,8 @@ Caminhos: os notebooks ficam em `src/06_jobs/` do Git folder.
 | 4 | `gold` | Notebook | `j03_gold` | silver | — |
 | 5 | `pipeline` | **Pipeline** | `nfe_ldp` | — (raiz: roda em paralelo) | — |
 | 6 | `reconcilia` | Notebook | `j04_reconcilia` | gold, pipeline | Parameter `corte_ms` = `{{job.start_time.timestamp_ms}}` (D017) |
-| 7 | `ctrl_lote` | Notebook | `j05_ctrl_lote` | bronze, silver, gold, pipeline, reconcilia | **Run if: All done** · Parameter `run_id` = `{{job.run_id}}` |
+| 7 | `dq` | Notebook | `j06_dq` | gold | Parameters `run_id` = `{{job.run_id}}`, `inicio_ms` = `{{job.start_time.timestamp_ms}}` (marco 7) |
+| 8 | `ctrl_lote` | Notebook | `j05_ctrl_lote` | bronze, silver, gold, pipeline, reconcilia, dq | **Run if: All done** · Parameters `run_id` = `{{job.run_id}}`, `inicio_ms` = `{{job.start_time.timestamp_ms}}` |
 
 > ⚠️ Testado: se a `ctrl_lote` depender só de `reconcilia`, ela é **excluída** junto com o ramo falso, mesmo com
 > *All done*. Ela precisa de pelo menos uma dependência que sempre executa (bronze, pipeline).

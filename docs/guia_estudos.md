@@ -333,6 +333,12 @@ referência?). Mapa completo em [fluxo.md](fluxo.md).
 - *File arrival* funciona por polling: reduz, mas não garante, disparo com lote incompleto. Quem garante que
   nada se perde é o checkpoint do Auto Loader
 - Parâmetros dinâmicos de tempo: `{{job.start_time.timestamp_ms}}`, `{{job.start_time.iso_datetime}}`
+- Task de qualidade **não falha** por achar problema no dado (problema de origem vai para o painel); falha só se
+  o código quebrar. Falhar a carga por aviso fiscal pararia o pipeline por culpa do emissor
+- Duas medidas por regra: `qtd_carga` (entrou nesta carga, data ≥ início da run) × `qtd_total` (estado atual).
+  A primeira dá a tendência, a segunda o número de hoje
+- Coluna nova em tabela de log existente: `ALTER TABLE ... ADD COLUMN` (linhas antigas ficam NULL) e `INSERT`
+  com lista de colunas explícita, para não depender da ordem física
 
 **Pegadinhas**
 - Comparar dois ramos paralelos sem corte comum = comparar fotos tiradas em horas diferentes (D017)
@@ -343,4 +349,5 @@ referência?). Mapa completo em [fluxo.md](fluxo.md).
 - Teste de 300 notas com `--sujo` pela CLI: gatilho disparou durante o `fs cp -r` (07:40, 301 arquivos); nova run
   às 07:47 leu o restante; `reconcilia` acusou bronze 5.101 × 5.161 e nfe_doc 5.076 × 5.136 (+60 arquivos lidos só
   pelo pipeline); run marcada *Succeeded* / `SuccessWithFailures`. Correção: corte comum (D017)
-- _Após o patch: anotar a run seguinte com a reconciliação usando o corte_
+- _Após o patch 7a: anotar a run seguinte com a reconciliação usando o corte_
+- _Após o patch 7b: anotar a primeira linha da `ctrl_dq` e a duração gravada na `ctrl_lote`_

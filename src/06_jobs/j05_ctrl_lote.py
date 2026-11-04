@@ -5,11 +5,16 @@
 # MAGIC Uma linha por lote por execução = histórico. Completude (Volume × bronze) e integridade (quarentena) juntas.
 # MAGIC
 # MAGIC Task values de tasks que não rodaram (falha ou condição falsa) voltam como `default` (-1).
+# MAGIC
+# MAGIC Marco 7: recebe `inicio_ms` (`{{job.start_time.timestamp_ms}}`) e grava `inicio_run`: duração = `executado_em − inicio_run`.
 
 # COMMAND ----------
 
 dbutils.widgets.text("run_id", "manual")
+dbutils.widgets.text("inicio_ms", "")
 run_id = dbutils.widgets.get("run_id")
+inicio_ms = dbutils.widgets.get("inicio_ms").strip()
+INICIO = f"timestamp_millis({int(inicio_ms)})" if inicio_ms else "CAST(NULL AS TIMESTAMP)"
 
 arquivos_novos = dbutils.jobs.taskValues.get(taskKey="bronze", key="arquivos_novos", default=-1, debugValue=-1)
 diferencas = dbutils.jobs.taskValues.get(taskKey="reconcilia", key="diferencas", default=-1, debugValue=-1)
@@ -36,10 +41,17 @@ CREATE TABLE IF NOT EXISTS workspace.nfe_bronze.ctrl_lote (
 COMMENT 'Log de carga por lote e por execução do Job (D008)'
 """)
 
+# marco 7: início da run → duração sem depender do histórico do orquestrador.
+# Tabela já existe com dados: coluna nova entra por ALTER (linhas antigas ficam NULL)
+if "inicio_run" not in spark.table("workspace.nfe_bronze.ctrl_lote").columns:
+    spark.sql("ALTER TABLE workspace.nfe_bronze.ctrl_lote ADD COLUMN inicio_run TIMESTAMP COMMENT 'início da run ({{job.start_time}})'")
+
 # COMMAND ----------
 
 spark.sql(f"""
 INSERT INTO workspace.nfe_bronze.ctrl_lote
+  (run_id, executado_em, lote, arquivos_volume, arquivos_bronze, faltando_na_bronze, quarentena, docs_validos,
+   reenvios, notas_vigentes, arquivos_novos_execucao, diferencas_nb_x_ldp, status, inicio_run)
 WITH inv AS (
   SELECT regexp_extract(path, '/(lote_[^/]+)/', 1) AS lote, count(*) AS arquivos_volume
   FROM read_files('/Volumes/workspace/nfe_bronze/landing/xml/*/*.xml', format => 'binaryFile')
@@ -66,7 +78,8 @@ SELECT '{run_id}', current_timestamp(), lote, arquivos_volume, arquivos_bronze, 
             WHEN {int(diferencas)} > 0                                   THEN 'DIVERGENTE'
             WHEN faltando_na_bronze > 0
               OR arquivos_bronze - quarentena - docs_validos <> 0        THEN 'INCOMPLETO'
-            ELSE 'OK' END
+            ELSE 'OK' END,
+       {INICIO}
 FROM base
 """)
 
