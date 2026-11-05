@@ -14,6 +14,10 @@ variables:
   pausa_gatilho:
     description: UNPAUSED liga o gatilho de chegada de arquivo; PAUSED deixa só execução manual
     default: PAUSED
+  warehouse_id:
+    description: SQL warehouse que executa as consultas do painel (lookup por nome, sem id fixo no repo)
+    lookup:
+      warehouse: Serverless Starter Warehouse
 
 targets:
   dev:

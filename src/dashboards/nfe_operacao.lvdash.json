@@ -1,0 +1,1456 @@
+{
+  "datasets": [
+    {
+      "name": "f112dc38",
+      "displayName": "ds_ultima_carga",
+      "query": "-- uma linha = a última execução do Job. Fonte dos counters: counter agrega o dataset inteiro\nWITH c AS (\n  SELECT run_id,\n         from_utc_timestamp(min(executado_em), 'America/Sao_Paulo')                AS fim_carga,\n         timestampdiff(SECOND, max(inicio_run), min(executado_em))  AS duracao_s,\n         sum(notas_vigentes)                                        AS notas_vigentes,\n         count_if(status NOT IN ('OK', 'SEM_ARQUIVO_NOVO'))         AS lotes_com_problema,\n         CASE WHEN count_if(status = 'FALHA_OU_PULADO') > 0  THEN 'FALHA_OU_PULADO'\n              WHEN count_if(status = 'DIVERGENTE') > 0       THEN 'DIVERGENTE'\n              WHEN count_if(status = 'INCOMPLETO') > 0       THEN 'INCOMPLETO'\n              WHEN count_if(status = 'SEM_ARQUIVO_NOVO') > 0 THEN 'SEM_ARQUIVO_NOVO'\n              ELSE 'OK' END                                         AS status\n  FROM workspace.nfe_bronze.ctrl_lote\n  GROUP BY run_id)\nSELECT * FROM c ORDER BY fim_carga DESC LIMIT 1"
+    },
+    {
+      "name": "f6477926",
+      "displayName": "ds_frescor",
+      "query": "SELECT round(timestampdiff(MINUTE, max(carregado_em), current_timestamp()) / 60, 1) AS horas_sem_dado_novo\nFROM workspace.nfe_bronze.nfe_xml_raw"
+    },
+    {
+      "name": "35abf852",
+      "displayName": "ds_cargas",
+      "query": "-- uma linha por execução; o pior status entre os lotes vence\nSELECT run_id,\n       CASE WHEN count_if(status = 'FALHA_OU_PULADO') > 0  THEN 'FALHA_OU_PULADO'\n            WHEN count_if(status = 'DIVERGENTE') > 0       THEN 'DIVERGENTE'\n            WHEN count_if(status = 'INCOMPLETO') > 0       THEN 'INCOMPLETO'\n            WHEN count_if(status = 'SEM_ARQUIVO_NOVO') > 0 THEN 'SEM_ARQUIVO_NOVO'\n            ELSE 'OK' END                                                         AS status,\n       from_utc_timestamp(coalesce(max(inicio_run), min(executado_em)), 'America/Sao_Paulo')   AS inicio_carga,\n       timestampdiff(SECOND, max(inicio_run), min(executado_em))                AS duracao_s,\n       max(arquivos_novos_execucao)                                             AS arquivos_novos,\n       max(diferencas_nb_x_ldp)                                                 AS diferencas,\n       max(chaves_sem_nota)                                                     AS chaves_sem_nota,\n       sum(notas_vigentes)                                                      AS notas_vigentes\nFROM workspace.nfe_bronze.ctrl_lote\nGROUP BY run_id\nORDER BY inicio_carga DESC"
+    },
+    {
+      "name": "fa9e0f7f",
+      "displayName": "ds_chegada",
+      "query": "-- arquivos e latência upload → bronze por hora de carga (rótulo texto: eixo categórico, sem agrupamento automático)\nSELECT date_format(from_utc_timestamp(date_trunc('HOUR', carregado_em), 'America/Sao_Paulo'), 'MM-dd HH:00')    AS hora,\n       count(*)                                                                                  AS arquivos,\n       percentile_approx(timestampdiff(SECOND, modificado_em, carregado_em), 0.5)                AS latencia_p50_s,\n       percentile_approx(timestampdiff(SECOND, modificado_em, carregado_em), 0.95)               AS latencia_p95_s\nFROM workspace.nfe_bronze.nfe_xml_raw\nGROUP BY 1"
+    },
+    {
+      "name": "1ea99dd7",
+      "displayName": "ds_lotes_ultima_carga",
+      "query": "-- vazia = saudável\nSELECT lote, arquivos_esperados, arquivos_volume, arquivos_bronze, faltando_na_bronze,\n       quarentena, docs_validos, chaves_sem_nota, status\nFROM workspace.nfe_bronze.ctrl_lote\nWHERE run_id = (SELECT max_by(run_id, executado_em) FROM workspace.nfe_bronze.ctrl_lote)\n  AND status NOT IN ('OK', 'SEM_ARQUIVO_NOVO')\nORDER BY lote"
+    },
+    {
+      "name": "70aeea94",
+      "displayName": "ds_dq_resumo",
+      "query": "-- última execução da task dq. orfao_sk_tributacao fica fora: é o reflexo conhecido do aviso cclasstrib_incoerente\nSELECT coalesce(sum(qtd_carga) FILTER (WHERE severidade = 'erro'), 0)  AS erros_carga,\n       coalesce(sum(qtd_carga) FILTER (WHERE severidade = 'aviso'), 0) AS avisos_carga,\n       coalesce(sum(qtd_total) FILTER (WHERE severidade = 'integridade' AND regra <> 'orfao_sk_tributacao'), 0) AS orfaos_total\nFROM workspace.nfe_bronze.ctrl_dq\nWHERE run_id = (SELECT max_by(run_id, executado_em) FROM workspace.nfe_bronze.ctrl_dq)"
+    },
+    {
+      "name": "ac0ac910",
+      "displayName": "ds_dq",
+      "query": "-- qtd_carga é aditiva (o que ENTROU em cada carga): pode empilhar e somar\nSELECT date_format(from_utc_timestamp(inicio_run, 'America/Sao_Paulo'), 'MM-dd HH:mm') AS carga,\n       severidade, regra, qtd_carga\nFROM workspace.nfe_bronze.ctrl_dq"
+    },
+    {
+      "name": "f28ca1b0",
+      "displayName": "ds_taxa_erro",
+      "query": "SELECT date_format(from_utc_timestamp(b.hora_carga, 'America/Sao_Paulo'), 'MM-dd HH:00') AS hora,\n       round(100 * coalesce(q.qtd, 0) / b.arquivos, 2)                       AS pct_erro\nFROM (SELECT date_trunc('HOUR', carregado_em) AS hora_carga, count(*) AS arquivos\n      FROM workspace.nfe_bronze.nfe_xml_raw GROUP BY 1) b\nLEFT JOIN (SELECT date_trunc('HOUR', detectado_em) AS hora_carga, count(*) AS qtd\n           FROM workspace.nfe_silver.nfe_quarentena GROUP BY 1) q USING (hora_carga)"
+    },
+    {
+      "name": "9ff3992b",
+      "displayName": "ds_dq_ultima",
+      "query": "SELECT severidade, regra, qtd_carga, qtd_total\nFROM workspace.nfe_bronze.ctrl_dq\nWHERE run_id = (SELECT max_by(run_id, executado_em) FROM workspace.nfe_bronze.ctrl_dq)\nORDER BY qtd_total DESC, severidade, regra"
+    }
+  ],
+  "pages": [
+    {
+      "name": "a641f172",
+      "displayName": "Saúde da carga",
+      "layout": [
+        {
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 6,
+            "height": 1
+          },
+          "widget": {
+            "name": "f53e184a",
+            "textbox_spec": "## Saúde da carga\nA carga rodou, chegou ao fim e não perdeu nada? Fonte: `ctrl_lote` (D008, D018)."
+          }
+        },
+        {
+          "position": {
+            "x": 0,
+            "y": 1,
+            "width": 2,
+            "height": 2
+          },
+          "widget": {
+            "name": "b97d545b",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "f112dc38",
+                  "disaggregated": true,
+                  "fields": [
+                    {
+                      "name": "status",
+                      "expression": "`status`"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "status",
+                  "displayName": "Status da última carga"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Status da última carga"
+              }
+            }
+          }
+        },
+        {
+          "position": {
+            "x": 2,
+            "y": 1,
+            "width": 1,
+            "height": 2
+          },
+          "widget": {
+            "name": "4149af63",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "f6477926",
+                  "disaggregated": true,
+                  "fields": [
+                    {
+                      "name": "horas_sem_dado_novo",
+                      "expression": "`horas_sem_dado_novo`"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "horas_sem_dado_novo",
+                  "displayName": "Horas sem dado novo"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Horas sem dado novo"
+              }
+            }
+          }
+        },
+        {
+          "position": {
+            "x": 3,
+            "y": 1,
+            "width": 1,
+            "height": 2
+          },
+          "widget": {
+            "name": "f76e8e82",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "f112dc38",
+                  "disaggregated": true,
+                  "fields": [
+                    {
+                      "name": "duracao_s",
+                      "expression": "`duracao_s`"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "duracao_s",
+                  "displayName": "Duração (s)"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Duração (s)"
+              }
+            }
+          }
+        },
+        {
+          "position": {
+            "x": 4,
+            "y": 1,
+            "width": 1,
+            "height": 2
+          },
+          "widget": {
+            "name": "557d0f4b",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "f112dc38",
+                  "disaggregated": true,
+                  "fields": [
+                    {
+                      "name": "notas_vigentes",
+                      "expression": "`notas_vigentes`"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "notas_vigentes",
+                  "displayName": "Notas vigentes"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Notas vigentes"
+              }
+            }
+          }
+        },
+        {
+          "position": {
+            "x": 5,
+            "y": 1,
+            "width": 1,
+            "height": 2
+          },
+          "widget": {
+            "name": "184b333d",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "f112dc38",
+                  "disaggregated": true,
+                  "fields": [
+                    {
+                      "name": "lotes_com_problema",
+                      "expression": "`lotes_com_problema`"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "lotes_com_problema",
+                  "displayName": "Lotes com problema"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Lotes com problema"
+              }
+            }
+          }
+        },
+        {
+          "position": {
+            "x": 0,
+            "y": 3,
+            "width": 6,
+            "height": 6
+          },
+          "widget": {
+            "name": "a456a02e",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "35abf852",
+                  "disaggregated": true,
+                  "fields": [
+                    {
+                      "name": "inicio_carga",
+                      "expression": "`inicio_carga`"
+                    },
+                    {
+                      "name": "status",
+                      "expression": "`status`"
+                    },
+                    {
+                      "name": "duracao_s",
+                      "expression": "`duracao_s`"
+                    },
+                    {
+                      "name": "arquivos_novos",
+                      "expression": "`arquivos_novos`"
+                    },
+                    {
+                      "name": "diferencas",
+                      "expression": "`diferencas`"
+                    },
+                    {
+                      "name": "chaves_sem_nota",
+                      "expression": "`chaves_sem_nota`"
+                    },
+                    {
+                      "name": "notas_vigentes",
+                      "expression": "`notas_vigentes`"
+                    },
+                    {
+                      "name": "run_id",
+                      "expression": "`run_id`"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "table",
+              "allowHTMLByDefault": false,
+              "condensed": true,
+              "encodings": {
+                "columns": [
+                  {
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "allowSearch": false,
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "displayAs": "datetime",
+                    "displayName": "inicio_carga",
+                    "fieldName": "inicio_carga",
+                    "highlightLinks": false,
+                    "imageHeight": "",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "linkOpenInNewTab": true,
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "order": 100000,
+                    "preserveWhitespace": false,
+                    "title": "inicio_carga",
+                    "type": "datetime",
+                    "useMonospaceFont": false,
+                    "visible": true,
+                    "dateTimeFormat": "DD/MM HH:mm"
+                  },
+                  {
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "allowSearch": false,
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "displayAs": "string",
+                    "displayName": "status",
+                    "fieldName": "status",
+                    "highlightLinks": false,
+                    "imageHeight": "",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "linkOpenInNewTab": true,
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "order": 100001,
+                    "preserveWhitespace": false,
+                    "title": "status",
+                    "type": "string",
+                    "useMonospaceFont": false,
+                    "visible": true
+                  },
+                  {
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "allowSearch": false,
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "displayAs": "number",
+                    "displayName": "duracao_s",
+                    "fieldName": "duracao_s",
+                    "highlightLinks": false,
+                    "imageHeight": "",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "linkOpenInNewTab": true,
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "order": 100002,
+                    "preserveWhitespace": false,
+                    "title": "duracao_s",
+                    "type": "integer",
+                    "useMonospaceFont": false,
+                    "visible": true,
+                    "numberFormat": "0"
+                  },
+                  {
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "allowSearch": false,
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "displayAs": "number",
+                    "displayName": "arquivos_novos",
+                    "fieldName": "arquivos_novos",
+                    "highlightLinks": false,
+                    "imageHeight": "",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "linkOpenInNewTab": true,
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "order": 100003,
+                    "preserveWhitespace": false,
+                    "title": "arquivos_novos",
+                    "type": "integer",
+                    "useMonospaceFont": false,
+                    "visible": true,
+                    "numberFormat": "0"
+                  },
+                  {
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "allowSearch": false,
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "displayAs": "number",
+                    "displayName": "diferencas",
+                    "fieldName": "diferencas",
+                    "highlightLinks": false,
+                    "imageHeight": "",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "linkOpenInNewTab": true,
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "order": 100004,
+                    "preserveWhitespace": false,
+                    "title": "diferencas",
+                    "type": "integer",
+                    "useMonospaceFont": false,
+                    "visible": true,
+                    "numberFormat": "0"
+                  },
+                  {
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "allowSearch": false,
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "displayAs": "number",
+                    "displayName": "chaves_sem_nota",
+                    "fieldName": "chaves_sem_nota",
+                    "highlightLinks": false,
+                    "imageHeight": "",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "linkOpenInNewTab": true,
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "order": 100005,
+                    "preserveWhitespace": false,
+                    "title": "chaves_sem_nota",
+                    "type": "integer",
+                    "useMonospaceFont": false,
+                    "visible": true,
+                    "numberFormat": "0"
+                  },
+                  {
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "allowSearch": false,
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "displayAs": "number",
+                    "displayName": "notas_vigentes",
+                    "fieldName": "notas_vigentes",
+                    "highlightLinks": false,
+                    "imageHeight": "",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "linkOpenInNewTab": true,
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "order": 100006,
+                    "preserveWhitespace": false,
+                    "title": "notas_vigentes",
+                    "type": "integer",
+                    "useMonospaceFont": false,
+                    "visible": true,
+                    "numberFormat": "0"
+                  },
+                  {
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "allowSearch": false,
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "displayAs": "string",
+                    "displayName": "run_id",
+                    "fieldName": "run_id",
+                    "highlightLinks": false,
+                    "imageHeight": "",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "linkOpenInNewTab": true,
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "order": 100007,
+                    "preserveWhitespace": false,
+                    "title": "run_id",
+                    "type": "string",
+                    "useMonospaceFont": false,
+                    "visible": true
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Cargas recentes"
+              },
+              "invisibleColumns": [],
+              "itemsPerPage": 25,
+              "paginationSize": "default",
+              "withRowNumber": false
+            }
+          }
+        },
+        {
+          "position": {
+            "x": 0,
+            "y": 9,
+            "width": 3,
+            "height": 5
+          },
+          "widget": {
+            "name": "48a467ba",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "fa9e0f7f",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "name": "hora",
+                      "expression": "`hora`"
+                    },
+                    {
+                      "name": "sum(arquivos)",
+                      "expression": "SUM(`arquivos`)"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "hora",
+                  "displayName": "hora",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "axis": {
+                    "title": "hora"
+                  }
+                },
+                "y": {
+                  "fieldName": "sum(arquivos)",
+                  "displayName": "arquivos",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "axis": {
+                    "title": "arquivos"
+                  }
+                },
+                "label": {
+                  "show": true
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Arquivos por hora de carga"
+              }
+            }
+          }
+        },
+        {
+          "position": {
+            "x": 3,
+            "y": 9,
+            "width": 3,
+            "height": 5
+          },
+          "widget": {
+            "name": "1a589e07",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "fa9e0f7f",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "name": "hora",
+                      "expression": "`hora`"
+                    },
+                    {
+                      "name": "max(latencia_p95_s)",
+                      "expression": "MAX(`latencia_p95_s`)"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "hora",
+                  "displayName": "hora",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "axis": {
+                    "title": "hora"
+                  }
+                },
+                "y": {
+                  "fieldName": "max(latencia_p95_s)",
+                  "displayName": "segundos",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "axis": {
+                    "title": "segundos"
+                  }
+                },
+                "label": {
+                  "show": true
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Latência upload → bronze (p95, s)"
+              }
+            }
+          }
+        },
+        {
+          "position": {
+            "x": 0,
+            "y": 14,
+            "width": 6,
+            "height": 4
+          },
+          "widget": {
+            "name": "14d0ab4c",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "1ea99dd7",
+                  "disaggregated": true,
+                  "fields": [
+                    {
+                      "name": "lote",
+                      "expression": "`lote`"
+                    },
+                    {
+                      "name": "status",
+                      "expression": "`status`"
+                    },
+                    {
+                      "name": "arquivos_esperados",
+                      "expression": "`arquivos_esperados`"
+                    },
+                    {
+                      "name": "arquivos_volume",
+                      "expression": "`arquivos_volume`"
+                    },
+                    {
+                      "name": "arquivos_bronze",
+                      "expression": "`arquivos_bronze`"
+                    },
+                    {
+                      "name": "faltando_na_bronze",
+                      "expression": "`faltando_na_bronze`"
+                    },
+                    {
+                      "name": "quarentena",
+                      "expression": "`quarentena`"
+                    },
+                    {
+                      "name": "docs_validos",
+                      "expression": "`docs_validos`"
+                    },
+                    {
+                      "name": "chaves_sem_nota",
+                      "expression": "`chaves_sem_nota`"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "table",
+              "allowHTMLByDefault": false,
+              "condensed": true,
+              "encodings": {
+                "columns": [
+                  {
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "allowSearch": false,
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "displayAs": "string",
+                    "displayName": "lote",
+                    "fieldName": "lote",
+                    "highlightLinks": false,
+                    "imageHeight": "",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "linkOpenInNewTab": true,
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "order": 100000,
+                    "preserveWhitespace": false,
+                    "title": "lote",
+                    "type": "string",
+                    "useMonospaceFont": false,
+                    "visible": true
+                  },
+                  {
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "allowSearch": false,
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "displayAs": "string",
+                    "displayName": "status",
+                    "fieldName": "status",
+                    "highlightLinks": false,
+                    "imageHeight": "",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "linkOpenInNewTab": true,
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "order": 100001,
+                    "preserveWhitespace": false,
+                    "title": "status",
+                    "type": "string",
+                    "useMonospaceFont": false,
+                    "visible": true
+                  },
+                  {
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "allowSearch": false,
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "displayAs": "number",
+                    "displayName": "arquivos_esperados",
+                    "fieldName": "arquivos_esperados",
+                    "highlightLinks": false,
+                    "imageHeight": "",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "linkOpenInNewTab": true,
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "order": 100002,
+                    "preserveWhitespace": false,
+                    "title": "arquivos_esperados",
+                    "type": "integer",
+                    "useMonospaceFont": false,
+                    "visible": true,
+                    "numberFormat": "0"
+                  },
+                  {
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "allowSearch": false,
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "displayAs": "number",
+                    "displayName": "arquivos_volume",
+                    "fieldName": "arquivos_volume",
+                    "highlightLinks": false,
+                    "imageHeight": "",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "linkOpenInNewTab": true,
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "order": 100003,
+                    "preserveWhitespace": false,
+                    "title": "arquivos_volume",
+                    "type": "integer",
+                    "useMonospaceFont": false,
+                    "visible": true,
+                    "numberFormat": "0"
+                  },
+                  {
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "allowSearch": false,
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "displayAs": "number",
+                    "displayName": "arquivos_bronze",
+                    "fieldName": "arquivos_bronze",
+                    "highlightLinks": false,
+                    "imageHeight": "",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "linkOpenInNewTab": true,
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "order": 100004,
+                    "preserveWhitespace": false,
+                    "title": "arquivos_bronze",
+                    "type": "integer",
+                    "useMonospaceFont": false,
+                    "visible": true,
+                    "numberFormat": "0"
+                  },
+                  {
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "allowSearch": false,
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "displayAs": "number",
+                    "displayName": "faltando_na_bronze",
+                    "fieldName": "faltando_na_bronze",
+                    "highlightLinks": false,
+                    "imageHeight": "",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "linkOpenInNewTab": true,
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "order": 100005,
+                    "preserveWhitespace": false,
+                    "title": "faltando_na_bronze",
+                    "type": "integer",
+                    "useMonospaceFont": false,
+                    "visible": true,
+                    "numberFormat": "0"
+                  },
+                  {
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "allowSearch": false,
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "displayAs": "number",
+                    "displayName": "quarentena",
+                    "fieldName": "quarentena",
+                    "highlightLinks": false,
+                    "imageHeight": "",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "linkOpenInNewTab": true,
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "order": 100006,
+                    "preserveWhitespace": false,
+                    "title": "quarentena",
+                    "type": "integer",
+                    "useMonospaceFont": false,
+                    "visible": true,
+                    "numberFormat": "0"
+                  },
+                  {
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "allowSearch": false,
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "displayAs": "number",
+                    "displayName": "docs_validos",
+                    "fieldName": "docs_validos",
+                    "highlightLinks": false,
+                    "imageHeight": "",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "linkOpenInNewTab": true,
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "order": 100007,
+                    "preserveWhitespace": false,
+                    "title": "docs_validos",
+                    "type": "integer",
+                    "useMonospaceFont": false,
+                    "visible": true,
+                    "numberFormat": "0"
+                  },
+                  {
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "allowSearch": false,
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "displayAs": "number",
+                    "displayName": "chaves_sem_nota",
+                    "fieldName": "chaves_sem_nota",
+                    "highlightLinks": false,
+                    "imageHeight": "",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "linkOpenInNewTab": true,
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "order": 100008,
+                    "preserveWhitespace": false,
+                    "title": "chaves_sem_nota",
+                    "type": "integer",
+                    "useMonospaceFont": false,
+                    "visible": true,
+                    "numberFormat": "0"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Lotes fora do OK na última carga (vazia = saudável)"
+              },
+              "invisibleColumns": [],
+              "itemsPerPage": 25,
+              "paginationSize": "default",
+              "withRowNumber": false
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "afff6f51",
+      "displayName": "Qualidade",
+      "layout": [
+        {
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 6,
+            "height": 1
+          },
+          "widget": {
+            "name": "57ab08c6",
+            "textbox_spec": "## Qualidade do dado\nO que entrou está correto? Fonte: `ctrl_dq`, uma linha por regra × execução (D018, D019)."
+          }
+        },
+        {
+          "position": {
+            "x": 0,
+            "y": 1,
+            "width": 2,
+            "height": 2
+          },
+          "widget": {
+            "name": "fe435239",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "70aeea94",
+                  "disaggregated": true,
+                  "fields": [
+                    {
+                      "name": "erros_carga",
+                      "expression": "`erros_carga`"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "erros_carga",
+                  "displayName": "Erros na última carga"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Erros na última carga"
+              }
+            }
+          }
+        },
+        {
+          "position": {
+            "x": 2,
+            "y": 1,
+            "width": 2,
+            "height": 2
+          },
+          "widget": {
+            "name": "23613ce5",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "70aeea94",
+                  "disaggregated": true,
+                  "fields": [
+                    {
+                      "name": "avisos_carga",
+                      "expression": "`avisos_carga`"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "avisos_carga",
+                  "displayName": "Avisos na última carga"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Avisos na última carga"
+              }
+            }
+          }
+        },
+        {
+          "position": {
+            "x": 4,
+            "y": 1,
+            "width": 2,
+            "height": 2
+          },
+          "widget": {
+            "name": "68891542",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "70aeea94",
+                  "disaggregated": true,
+                  "fields": [
+                    {
+                      "name": "orfaos_total",
+                      "expression": "`orfaos_total`"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "orfaos_total",
+                  "displayName": "Órfãos na gold"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Órfãos na gold"
+              }
+            }
+          }
+        },
+        {
+          "position": {
+            "x": 0,
+            "y": 3,
+            "width": 6,
+            "height": 6
+          },
+          "widget": {
+            "name": "089d6ba4",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ac0ac910",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "name": "carga",
+                      "expression": "`carga`"
+                    },
+                    {
+                      "name": "sum(qtd_carga)",
+                      "expression": "SUM(`qtd_carga`)"
+                    },
+                    {
+                      "name": "severidade",
+                      "expression": "`severidade`"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "carga",
+                  "displayName": "carga",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "axis": {
+                    "title": "carga"
+                  }
+                },
+                "y": {
+                  "fieldName": "sum(qtd_carga)",
+                  "displayName": "registros",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "axis": {
+                    "title": "registros"
+                  }
+                },
+                "label": {
+                  "show": true
+                },
+                "color": {
+                  "fieldName": "severidade",
+                  "displayName": "severidade",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Problemas que entraram por carga"
+              }
+            }
+          }
+        },
+        {
+          "position": {
+            "x": 0,
+            "y": 9,
+            "width": 3,
+            "height": 6
+          },
+          "widget": {
+            "name": "fb7aea4e",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "f28ca1b0",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "name": "hora",
+                      "expression": "`hora`"
+                    },
+                    {
+                      "name": "max(pct_erro)",
+                      "expression": "MAX(`pct_erro`)"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "hora",
+                  "displayName": "hora",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "axis": {
+                    "title": "hora"
+                  }
+                },
+                "y": {
+                  "fieldName": "max(pct_erro)",
+                  "displayName": "% erro",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "axis": {
+                    "title": "% erro"
+                  }
+                },
+                "label": {
+                  "show": true
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "% de arquivos em quarentena por hora"
+              }
+            }
+          }
+        },
+        {
+          "position": {
+            "x": 3,
+            "y": 9,
+            "width": 3,
+            "height": 6
+          },
+          "widget": {
+            "name": "ca1aa3dd",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "9ff3992b",
+                  "disaggregated": true,
+                  "fields": [
+                    {
+                      "name": "severidade",
+                      "expression": "`severidade`"
+                    },
+                    {
+                      "name": "regra",
+                      "expression": "`regra`"
+                    },
+                    {
+                      "name": "qtd_carga",
+                      "expression": "`qtd_carga`"
+                    },
+                    {
+                      "name": "qtd_total",
+                      "expression": "`qtd_total`"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "table",
+              "allowHTMLByDefault": false,
+              "condensed": true,
+              "encodings": {
+                "columns": [
+                  {
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "allowSearch": false,
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "displayAs": "string",
+                    "displayName": "severidade",
+                    "fieldName": "severidade",
+                    "highlightLinks": false,
+                    "imageHeight": "",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "linkOpenInNewTab": true,
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "order": 100000,
+                    "preserveWhitespace": false,
+                    "title": "severidade",
+                    "type": "string",
+                    "useMonospaceFont": false,
+                    "visible": true
+                  },
+                  {
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "allowSearch": false,
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "displayAs": "string",
+                    "displayName": "regra",
+                    "fieldName": "regra",
+                    "highlightLinks": false,
+                    "imageHeight": "",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "linkOpenInNewTab": true,
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "order": 100001,
+                    "preserveWhitespace": false,
+                    "title": "regra",
+                    "type": "string",
+                    "useMonospaceFont": false,
+                    "visible": true
+                  },
+                  {
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "allowSearch": false,
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "displayAs": "number",
+                    "displayName": "qtd_carga",
+                    "fieldName": "qtd_carga",
+                    "highlightLinks": false,
+                    "imageHeight": "",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "linkOpenInNewTab": true,
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "order": 100002,
+                    "preserveWhitespace": false,
+                    "title": "qtd_carga",
+                    "type": "integer",
+                    "useMonospaceFont": false,
+                    "visible": true,
+                    "numberFormat": "0"
+                  },
+                  {
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "allowSearch": false,
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "displayAs": "number",
+                    "displayName": "qtd_total",
+                    "fieldName": "qtd_total",
+                    "highlightLinks": false,
+                    "imageHeight": "",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "linkOpenInNewTab": true,
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "order": 100003,
+                    "preserveWhitespace": false,
+                    "title": "qtd_total",
+                    "type": "integer",
+                    "useMonospaceFont": false,
+                    "visible": true,
+                    "numberFormat": "0"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Regras: nesta carga × acumulado"
+              },
+              "invisibleColumns": [],
+              "itemsPerPage": 25,
+              "paginationSize": "default",
+              "withRowNumber": false
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

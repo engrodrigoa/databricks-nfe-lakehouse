@@ -207,3 +207,14 @@ do painel, não três camadas depois.
 **Correção:** a 1ª versão chamava `_lote.json`. O Spark ignora arquivos que começam com `_` ou `.` (ocultos, como
 `_SUCCESS`), a leitura caiu no fallback "sem controle" em silêncio e `arquivos_esperados` ficou nulo. Renomeado
 para `controle_lote.json`; a quantidade de controles lidos passa a ser impressa e vira task value.
+
+## D020 — Painel como recurso do bundle, escrito como código
+
+**Contexto:** os dois painéis do marco 7 nasceram na UI como rascunho. Para versionar o SQL dos datasets e implantar
+o painel junto com o Job, ele precisa virar recurso do bundle. O leitor é o operador; página de negócio fica fora.
+**Decisão:** um painel único `NF-e Operação` (páginas Saúde da carga e Qualidade) em `src/dashboards/*.lvdash.json`,
+estrutura conferida com o exemplo oficial `databricks/bundle-examples`; recurso `dashboards` no bundle com
+`warehouse_id` por `lookup` (nome do warehouse, sem id no repositório público). Os rascunhos da UI são apagados
+depois da conferência.
+**Consequência:** SQL dos datasets revisável em PR; o deploy recria o painel idêntico (drift corrigido como no Job).
+Ajuste visual na UI precisa voltar ao Git (`bundle generate`), senão o próximo deploy desfaz.

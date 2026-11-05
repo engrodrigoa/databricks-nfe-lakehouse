@@ -1,0 +1,12 @@
+# Painel AI/BI "NF-e Operação" (marco 7): páginas Saúde da carga e Qualidade, lendo ctrl_lote e ctrl_dq.
+# O conteúdo (datasets em SQL, widgets, layout) está no .lvdash.json: versionado e revisável em PR como o Job.
+# Ajuste visual feito na UI vira drift: o próximo deploy sobrescreve. Para trazer da UI para o Git:
+#   databricks bundle generate dashboard --resource nfe_operacao --force   (conferir opções com --help)
+resources:
+  dashboards:
+    nfe_operacao:
+      display_name: NF-e Operação
+      file_path: ../src/dashboards/nfe_operacao.lvdash.json
+      warehouse_id: ${var.warehouse_id}
+      # false: cada leitor consulta com as próprias permissões (Unity Catalog decide o que ele vê)
+      embed_credentials: false

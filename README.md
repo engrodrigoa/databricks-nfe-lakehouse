@@ -40,7 +40,7 @@ Mapa completo, com cada controle posicionado na etapa que vigia: **[docs/fluxo.m
                                                                ▼
                          GOLD    dm_* (TABLE) · ft_nfe_item · ft_nfe_documento · ag_nfe_ibscbs_mensal (MATERIALIZED VIEW)
                                                                ▼
-                                 vw_ibscbs_uf_mes ──► AI/BI Dashboard (marco 7)
+                                 ctrl_lote · ctrl_dq ──► AI/BI Dashboard "NF-e Operação" (saúde da carga, qualidade)
 
  Em paralelo: o mesmo fluxo como Lakeflow Declarative Pipeline (expectations, AUTO CDC SCD1/SCD2),
  reconciliado camada a camada com os notebooks a cada execução.
@@ -71,6 +71,7 @@ databricks bundle deploy -t prod      # prod: "nfe_job", gatilho ligado, run_as 
 | **CI no GitHub Actions** | `validate` em todo push/PR; `deploy -t prod` só por execução manual |
 | **Correção de drift** | o Job de prod foi apagado pela UI e o `deploy` seguinte o recriou idêntico |
 | **Estado no workspace** | deploy pelo PC e pelo CI encontram o mesmo estado (`0 created, 2 unchanged`) |
+| **Painel como recurso** | o painel AI/BI (SQL dos datasets, páginas, widgets) é implantado junto com o Job |
 
 Começar um projeto novo com o Job já estruturado em YAML é o que dá velocidade: o planejamento das três linhas
 vira tasks, e as tasks viram código revisável em PR. Detalhes: [docs/job_nfe.md](docs/job_nfe.md).
@@ -116,7 +117,8 @@ src/03_silver/      setup (refs, UDF, views) · carga PySpark (stream + MERGE) �
 src/04_gold/        dimensões · fatos e agregado (MV) · validação
 src/05_pipeline/    transformations/ do pipeline nfe_ldp · notebook de validação
 src/06_jobs/        notebooks enxutos das tasks do Job
-resources/          Job em YAML (Asset Bundle); databricks.yml na raiz
+src/dashboards/     painel AI/BI NF-e Operação como código (.lvdash.json)
+resources/          Job e painel em YAML (Asset Bundle); databricks.yml na raiz
 .github/workflows/  CI do bundle
 data/               massa local gerada (fora do Git)
 ```
@@ -145,7 +147,7 @@ com o que chegou ao Volume.
 | 4 | Gold: dimensões (TABLE), fatos e agregado (MATERIALIZED VIEW), consumo (VIEW) | ✔ |
 | 5 | Lakeflow Declarative Pipeline em schemas paralelos: expectations, AUTO CDC SCD1/SCD2, MVs (= notebooks, diferença 0) | ✔ |
 | 6 | Lakeflow Job (file arrival, notebooks ∥ pipeline, condição, reconciliação, ctrl_lote) como Asset Bundle dev/prod + CI no GitHub Actions | ✔ |
-| 7 | Mapa das três linhas ✔ · reconciliação com corte comum ✔ · task de qualidade `ctrl_dq` ✔ · fronteiras vigiadas (arquivo de controle, `nfe_doc → nfe_nota`, reenvio entre cargas) ✔ · painel "Saúde da Carga" ✔ · páginas Qualidade e Negócio · painel como recurso do bundle · carga até 50k notas | em andamento |
+| 7 | Mapa das três linhas ✔ · reconciliação com corte comum ✔ · task de qualidade `ctrl_dq` ✔ · fronteiras vigiadas (arquivo de controle, `nfe_doc → nfe_nota`, reenvio entre cargas) ✔ · painel AI/BI "NF-e Operação" (saúde da carga + qualidade) como recurso do bundle ✔ | ✔ |
 
 Detalhes: [fluxo](docs/fluxo.md) · [Job](docs/job_nfe.md) · [dashboard](docs/dashboard.md) ·
 [contrato de dados](docs/contrato_dados.md) · [decisões](docs/decisoes.md) · [guia de estudos](docs/guia_estudos.md)

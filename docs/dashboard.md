@@ -174,14 +174,27 @@ LEFT JOIN (SELECT date_trunc('HOUR', detectado_em) AS hora_carga, count(*) AS qt
 Aqui o eixo é o **mês de emissão** da nota (fato de negócio), não a carga. Filtros: período e UF do emitente.
 Medidas não aditivas (`pct_carga_efetiva`, notas distintas) são recalculadas no dataset, nunca somadas no widget.
 
+## Painel como código (D020)
+
+```
+resources/nfe_dashboard.yml              o recurso: nome, warehouse (lookup por nome), caminho do JSON
+src/dashboards/nfe_operacao.lvdash.json  o conteúdo: 9 datasets (SQL), 2 páginas, 17 widgets
+```
+
+- Os rascunhos feitos na UI ("Saúde da Carga", "Qualidade") ensinaram o editor; o painel oficial é o do bundle.
+  Depois de conferir o novo, apague os rascunhos (mesma virada de fonte única do Job no marco 6)
+- `embed_credentials: false`: cada leitor consulta com as próprias permissões do Unity Catalog
+- Rótulos de tempo como texto (`MM-dd HH:mm`) no dataset: eixo categórico, sem agrupamento automático por semana
+- Schedule de atualização: configurar na UI do painel publicado (não faz parte do recurso)
+
 ## Ordem de construção
 
 ```
 7b  ✔ patch: j06_dq + ctrl_dq + inicio_run ──► bundle deploy -t prod ──► 1 lote de teste
 7c  ✔ UI: datasets + página 1 publicada como "Saúde da Carga" (counters via ds_ultima_carga)
-7d  UI: páginas 2 e 3, filtros, publicação
-7e  bundle: dashboard vira recurso (databricks bundle generate dashboard) → versionado com o Job
-7f  carga contínua até 50k notas: o painel mostra o comportamento sob volume
+7d  ✔ página Qualidade (UI, rascunho); Negócio fora do escopo (decisão: operador)
+7e  ✔ bundle: painel escrito como código (lvdash.json) e implantado com o Job
+7f  fora do marco: volume cresce aos poucos, como rotina (o atual já prova o pipeline)
 ```
 
 No 7e, o painel criado na UI vira `resources/*.yml` + um `.lvdash.json`. A partir daí valem as regras do Job:

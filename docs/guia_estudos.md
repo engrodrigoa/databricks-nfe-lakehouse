@@ -383,3 +383,12 @@ referência?). Mapa completo em [fluxo.md](fluxo.md).
   recente). Regra: **lógica no dataset, widget só exibe** → `ds_ultima_carga` com `ORDER BY ... LIMIT 1`
 - Timestamps chegam em UTC: converter no dataset (`from_utc_timestamp(x, 'America/Sao_Paulo')`)
 - Counter de frescor depende do refresh do painel ("42m ago"): publicar com **Schedule** de atualização
+
+**7e · Painel como código (D020)**
+- Recurso `dashboards` no bundle: YAML curto (nome, `warehouse_id`, `file_path`) + `.lvdash.json` com datasets,
+  páginas e widgets (counter v2, bar/line v3, table v1, grid de 6 colunas)
+- `warehouse_id` por `lookup` de nome, como o pipeline: nada de id fixo no repositório
+- `embed_credentials`: `true` = consultas com a identidade de quem implantou (leitor vê tudo que ela vê);
+  `false` = cada leitor com as próprias permissões do UC
+- Eixo do gráfico em data → o widget agrupa sozinho (semana); rótulo texto no dataset dá uma barra por carga
+- Medida aditiva (`qtd_carga`, o que entrou) pode empilhar e somar; semi-aditiva (`notas_vigentes`, foto) não
