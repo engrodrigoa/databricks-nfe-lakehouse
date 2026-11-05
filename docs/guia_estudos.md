@@ -392,3 +392,6 @@ referência?). Mapa completo em [fluxo.md](fluxo.md).
   `false` = cada leitor com as próprias permissões do UC
 - Eixo do gráfico em data → o widget agrupa sozinho (semana); rótulo texto no dataset dá uma barra por carga
 - Medida aditiva (`qtd_carga`, o que entrou) pode empilhar e somar; semi-aditiva (`notas_vigentes`, foto) não
+- Primeiro deploy: 17 widgets renderizaram. Ajustes: cabeçalho com 1 linha de altura cortava o subtítulo; a latência
+  dos lotes iniciais (~3 dias no Volume antes da bronze oficial) achatava o gráfico → latência só da era do Job
+  (desde a 1ª `ctrl_lote`), o restante fica NULL e o percentil ignora

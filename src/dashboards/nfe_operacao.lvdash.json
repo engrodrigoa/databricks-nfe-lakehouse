@@ -18,7 +18,7 @@
     {
       "name": "fa9e0f7f",
       "displayName": "ds_chegada",
-      "query": "-- arquivos e latência upload → bronze por hora de carga (rótulo texto: eixo categórico, sem agrupamento automático)\nSELECT date_format(from_utc_timestamp(date_trunc('HOUR', carregado_em), 'America/Sao_Paulo'), 'MM-dd HH:00')    AS hora,\n       count(*)                                                                                  AS arquivos,\n       percentile_approx(timestampdiff(SECOND, modificado_em, carregado_em), 0.5)                AS latencia_p50_s,\n       percentile_approx(timestampdiff(SECOND, modificado_em, carregado_em), 0.95)               AS latencia_p95_s\nFROM workspace.nfe_bronze.nfe_xml_raw\nGROUP BY 1"
+      "query": "-- arquivos e latência upload → bronze por hora de carga (rótulo texto: eixo categórico, sem agrupamento automático).\n-- Latência só da era do Job (desde a 1ª ctrl_lote): os lotes iniciais ficaram dias no Volume antes da bronze oficial\n-- (marco 2) e mediriam a espera pelo projeto, não o pipeline. Fora da era do Job a latência fica NULL (percentil ignora)\nWITH era AS (SELECT min(executado_em) AS inicio_job FROM workspace.nfe_bronze.ctrl_lote)\nSELECT date_format(from_utc_timestamp(date_trunc('HOUR', r.carregado_em), 'America/Sao_Paulo'), 'MM-dd HH:00') AS hora,\n       count(*)                                                                                 AS arquivos,\n       percentile_approx(CASE WHEN r.carregado_em >= era.inicio_job\n                              THEN timestampdiff(SECOND, r.modificado_em, r.carregado_em) END, 0.5)  AS latencia_p50_s,\n       percentile_approx(CASE WHEN r.carregado_em >= era.inicio_job\n                              THEN timestampdiff(SECOND, r.modificado_em, r.carregado_em) END, 0.95) AS latencia_p95_s\nFROM workspace.nfe_bronze.nfe_xml_raw r CROSS JOIN era\nGROUP BY 1"
     },
     {
       "name": "1ea99dd7",
@@ -56,7 +56,7 @@
             "x": 0,
             "y": 0,
             "width": 6,
-            "height": 1
+            "height": 2
           },
           "widget": {
             "name": "f53e184a",
@@ -66,7 +66,7 @@
         {
           "position": {
             "x": 0,
-            "y": 1,
+            "y": 2,
             "width": 2,
             "height": 2
           },
@@ -106,7 +106,7 @@
         {
           "position": {
             "x": 2,
-            "y": 1,
+            "y": 2,
             "width": 1,
             "height": 2
           },
@@ -146,7 +146,7 @@
         {
           "position": {
             "x": 3,
-            "y": 1,
+            "y": 2,
             "width": 1,
             "height": 2
           },
@@ -186,7 +186,7 @@
         {
           "position": {
             "x": 4,
-            "y": 1,
+            "y": 2,
             "width": 1,
             "height": 2
           },
@@ -226,7 +226,7 @@
         {
           "position": {
             "x": 5,
-            "y": 1,
+            "y": 2,
             "width": 1,
             "height": 2
           },
@@ -266,7 +266,7 @@
         {
           "position": {
             "x": 0,
-            "y": 3,
+            "y": 4,
             "width": 6,
             "height": 6
           },
@@ -560,7 +560,7 @@
         {
           "position": {
             "x": 0,
-            "y": 9,
+            "y": 10,
             "width": 3,
             "height": 5
           },
@@ -623,7 +623,7 @@
         {
           "position": {
             "x": 3,
-            "y": 9,
+            "y": 10,
             "width": 3,
             "height": 5
           },
@@ -686,7 +686,7 @@
         {
           "position": {
             "x": 0,
-            "y": 14,
+            "y": 15,
             "width": 6,
             "height": 4
           },
@@ -1020,7 +1020,7 @@
             "x": 0,
             "y": 0,
             "width": 6,
-            "height": 1
+            "height": 2
           },
           "widget": {
             "name": "57ab08c6",
@@ -1030,7 +1030,7 @@
         {
           "position": {
             "x": 0,
-            "y": 1,
+            "y": 2,
             "width": 2,
             "height": 2
           },
@@ -1070,7 +1070,7 @@
         {
           "position": {
             "x": 2,
-            "y": 1,
+            "y": 2,
             "width": 2,
             "height": 2
           },
@@ -1110,7 +1110,7 @@
         {
           "position": {
             "x": 4,
-            "y": 1,
+            "y": 2,
             "width": 2,
             "height": 2
           },
@@ -1150,7 +1150,7 @@
         {
           "position": {
             "x": 0,
-            "y": 3,
+            "y": 4,
             "width": 6,
             "height": 6
           },
@@ -1224,7 +1224,7 @@
         {
           "position": {
             "x": 0,
-            "y": 9,
+            "y": 10,
             "width": 3,
             "height": 6
           },
@@ -1287,7 +1287,7 @@
         {
           "position": {
             "x": 3,
-            "y": 9,
+            "y": 10,
             "width": 3,
             "height": 6
           },
